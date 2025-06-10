@@ -3,6 +3,8 @@
   "description": "Extracts text from a selected screen area and copies it to the clipboard, similar to PowerToys Text Extractor.",
   "uuid": "text-extractor@imshaaz21.github.com",
   "shell-version": [
+    "46",
+    "47",
     "48",
     "48.2"
   ],
@@ -12,7 +14,6 @@
   "settings-schema": "org.gnome.shell.extensions.text-extractor",
   "languages": {
     "eng": "English",
-    "fra": "French",
-    "spa": "Spanish"
+    "tam": "தமிழ்"
   }
 }
