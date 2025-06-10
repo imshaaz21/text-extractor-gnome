@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+    <schema id="org.gnome.shell.extensions.text-extractor" path="/org/gnome/shell/extensions/text-extractor/">
+        <key name="language" type="s">
+            <default>'eng'</default>
+            <summary>OCR Language</summary>
+            <description>The language used for OCR text extraction.</description>
+        </key>
+        <key name="show-indicator" type="b">
+            <default>true</default>
+            <summary>Show Indicator</summary>
+            <description>Whether to show the panel indicator.</description>
+        </key>
+    </schema>
+</schemalist>
