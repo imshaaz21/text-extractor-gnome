@@ -12,16 +12,6 @@ const REQUIRED_DEPENDENCIES = [
         command: 'tesseract',
         package: 'tesseract-ocr',
         description: 'OCR engine for text extraction'
-    },
-    {
-        command: 'xclip',
-        package: 'xclip',
-        description: 'Clipboard utility'
-    },
-    {
-        command: 'gnome-screenshot',
-        package: 'gnome-screenshot',
-        description: 'Screenshot utility'
     }
 ];
 
@@ -36,29 +26,20 @@ export default class TextExtractorExtension extends Extension {
     }
 
     enable() {
-        try {
-            this._settings = this.getSettings();
-            this._createPanelButton();
-            this._bindSettings();
-            this._checkDependenciesOnStart();
-        } catch (error) {
-            this._logError('Failed to enable extension', error);
-            this._showNotification(_('Text Extractor'), _('Failed to initialize extension'));
-        }
+        this._settings = this.getSettings();
+        this._createPanelButton();
+        this._bindSettings();
+        this._checkDependenciesOnStart();
     }
 
     disable() {
-        try {
-            if (this._indicator) {
-                this._indicator.destroy();
-                this._indicator = null;
-            }
-            this._settings = null;
-            this._languageLabel = null;
-            this._isExtracting = false;
-        } catch (error) {
-            this._logError('Failed to disable extension', error);
+        if (this._indicator) {
+            this._indicator.destroy();
+            this._indicator = null;
         }
+        this._settings = null;
+        this._languageLabel = null;
+        this._isExtracting = false;
     }
 
     _createPanelButton() {
