@@ -4,15 +4,36 @@ import Gtk from 'gi://Gtk';
 
 import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-
 export default class TextExtractorPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         window.set_title(_('Text Extractor Preferences'));
         window.set_default_size(600, 500);
 
-        this._settings = this.getSettings();
+        // A cleanup object to track resources
+        const cleanup = {
+            settings: null,
+            languageStatusRow: null,
+            statusIcon: null,
+            depRows: {},
+            pendingOperations: new Set()
+        };
 
-        // Create main page
+        window.connect('close-request', () => {
+            cleanup.pendingOperations.forEach(cancellable => {
+                if (cancellable && !cancellable.is_cancelled()) {
+                    cancellable.cancel();
+                }
+            });
+            cleanup.pendingOperations.clear();
+
+            cleanup.settings = null;
+            cleanup.languageStatusRow = null;
+            cleanup.statusIcon = null;
+            cleanup.depRows = null;
+        });
+
+        cleanup.settings = this.getSettings();
+
         const page = new Adw.PreferencesPage({
             title: _('General'),
             icon_name: 'preferences-system-symbolic',
@@ -20,13 +41,13 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
         window.add(page);
 
         // Create preference groups
-        this._createAppearanceGroup(page);
-        this._createLanguageGroup(page);
-        this._createDependenciesGroup(page);
+        this._createAppearanceGroup(page, cleanup);
+        this._createLanguageGroup(page, cleanup);
+        this._createDependenciesGroup(page, cleanup);
         this._createAboutGroup(page);
     }
 
-    _createAppearanceGroup(page) {
+    _createAppearanceGroup(page, cleanup) {
         const appearanceGroup = new Adw.PreferencesGroup({
             title: _('Appearance'),
             description: _('Configure how the extension appears in your desktop'),
@@ -39,13 +60,13 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
             subtitle: _('Display the Text Extractor icon in the top panel'),
         });
 
-        this._settings.bind('show-indicator', showIndicatorRow, 'active',
+        cleanup.settings.bind('show-indicator', showIndicatorRow, 'active',
             Gio.SettingsBindFlags.DEFAULT);
 
         appearanceGroup.add(showIndicatorRow);
     }
 
-    _createLanguageGroup(page) {
+    _createLanguageGroup(page, cleanup) {
         const languageGroup = new Adw.PreferencesGroup({
             title: _('OCR Language'),
             description: _('Select the language for optical character recognition'),
@@ -53,9 +74,9 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
         page.add(languageGroup);
 
         // Get current language
-        let currentLang = this._settings.get_string('language');
+        let currentLang = cleanup.settings.get_string('language');
 
-        const rawLangs = this.metadata.languages || { eng: 'English' };
+        const rawLangs = this.metadata.languages || {eng: 'English'};
         const LANGUAGES = {};
 
         for (const [code, name] of Object.entries(rawLangs)) {
@@ -64,12 +85,11 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
 
         if (!Object.keys(LANGUAGES).includes(currentLang)) {
             currentLang = 'eng';
-            this._settings.set_string('language', currentLang);
+            cleanup.settings.set_string('language', currentLang);
         }
 
         let buttonGroup = null;
 
-        // Create language selection rows
         for (const [code, name] of Object.entries(LANGUAGES)) {
             const row = new Adw.ActionRow({
                 title: name,
@@ -90,8 +110,8 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
 
             button.connect('toggled', (btn) => {
                 if (btn.active) {
-                    this._settings.set_string('language', code);
-                    this._updateLanguageStatus();
+                    cleanup.settings.set_string('language', code);
+                    this._updateLanguageStatus(cleanup);
                 }
             });
 
@@ -100,36 +120,34 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
             languageGroup.add(row);
         }
 
-        // Add language status row
-        this._createLanguageStatusRow(languageGroup);
+        this._createLanguageStatusRow(languageGroup, cleanup);
     }
 
-    _createLanguageStatusRow(group) {
-        this._languageStatusRow = new Adw.ActionRow({
+    _createLanguageStatusRow(group, cleanup) {
+        cleanup.languageStatusRow = new Adw.ActionRow({
             title: _('Language Pack Status'),
             subtitle: _('Checking...'),
         });
 
-        this._statusIcon = new Gtk.Image({
+        cleanup.statusIcon = new Gtk.Image({
             icon_name: 'content-loading-symbolic',
             valign: Gtk.Align.CENTER,
         });
 
-        this._languageStatusRow.add_suffix(this._statusIcon);
-        group.add(this._languageStatusRow);
+        cleanup.languageStatusRow.add_suffix(cleanup.statusIcon);
+        group.add(cleanup.languageStatusRow);
 
         // Initial status check
-        this._updateLanguageStatus();
+        this._updateLanguageStatus(cleanup);
     }
 
-    _createDependenciesGroup(page) {
+    _createDependenciesGroup(page, cleanup) {
         const depsGroup = new Adw.PreferencesGroup({
             title: _('System Dependencies'),
             description: _('Required system packages for text extraction'),
         });
         page.add(depsGroup);
 
-        // Check dependencies button
         const checkDepsRow = new Adw.ActionRow({
             title: _('Check Dependencies'),
             subtitle: _('Verify that all required packages are installed'),
@@ -142,39 +160,24 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
         });
 
         checkButton.connect('clicked', () => {
-            this._checkDependencies();
+            this._checkDependencies(cleanup);
         });
 
         checkDepsRow.add_suffix(checkButton);
         depsGroup.add(checkDepsRow);
 
-        // Dependencies status
-        this._createDependencyStatusRows(depsGroup);
+        this._createDependencyStatusRows(depsGroup, cleanup);
     }
 
-    _createDependencyStatusRows(group) {
+    _createDependencyStatusRows(group, cleanup) {
         const dependencies = [
             {
                 name: 'tesseract',
                 title: _('Tesseract OCR'),
                 description: _('Optical Character Recognition engine'),
                 package: 'tesseract-ocr'
-            },
-            {
-                name: 'xclip',
-                title: _('XClip'),
-                description: _('Clipboard utility'),
-                package: 'xclip'
-            },
-            {
-                name: 'gnome-screenshot',
-                title: _('GNOME Screenshot'),
-                description: _('Screenshot capture utility'),
-                package: 'gnome-screenshot'
             }
         ];
-
-        this._depRows = {};
 
         for (const dep of dependencies) {
             const row = new Adw.ActionRow({
@@ -190,7 +193,7 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
             row.add_suffix(statusIcon);
             group.add(row);
 
-            this._depRows[dep.name] = {
+            cleanup.depRows[dep.name] = {
                 row: row,
                 icon: statusIcon,
                 package: dep.package
@@ -256,7 +259,7 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
     _getLanguageSubtitle(code) {
         switch (code) {
             case 'eng':
-                return _('Latin script, widely supported');
+                return _('English script, widely supported');
             case 'tam':
                 return _('Tamil script, requires language pack');
             default:
@@ -264,35 +267,50 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
         }
     }
 
-    _updateLanguageStatus() {
-        if (!this._languageStatusRow) return;
+    _updateLanguageStatus(cleanup) {
+        if (!cleanup.languageStatusRow) return;
 
-        const currentLang = this._settings.get_string('language');
+        const currentLang = cleanup.settings.get_string('language');
+        const cancellable = new Gio.Cancellable();
+        cleanup.pendingOperations.add(cancellable);
 
         // Check if the language is available
-        this._checkTesseractLanguage(currentLang).then((available) => {
+        this._checkTesseractLanguage(currentLang, cancellable).then((available) => {
+            if (cancellable.is_cancelled()) return;
+
+            cleanup.pendingOperations.delete(cancellable);
+
             if (available) {
-                this._languageStatusRow.subtitle = _('Language pack is installed and ready');
-                this._statusIcon.icon_name = 'emblem-ok-symbolic';
-                this._statusIcon.css_classes = ['success'];
+                cleanup.languageStatusRow.subtitle = _('Language pack is installed and ready');
+                cleanup.statusIcon.icon_name = 'emblem-ok-symbolic';
+                cleanup.statusIcon.css_classes = ['success'];
             } else {
-                this._languageStatusRow.subtitle = _('Language pack not found - please install it');
-                this._statusIcon.icon_name = 'dialog-warning-symbolic';
-                this._statusIcon.css_classes = ['warning'];
+                cleanup.languageStatusRow.subtitle = _('Language pack not found - please install it');
+                cleanup.statusIcon.icon_name = 'dialog-warning-symbolic';
+                cleanup.statusIcon.css_classes = ['warning'];
             }
         }).catch(() => {
-            this._languageStatusRow.subtitle = _('Unable to check language pack status');
-            this._statusIcon.icon_name = 'dialog-error-symbolic';
-            this._statusIcon.css_classes = ['error'];
+            if (cancellable.is_cancelled()) return;
+
+            cleanup.pendingOperations.delete(cancellable);
+            cleanup.languageStatusRow.subtitle = _('Unable to check language pack status');
+            cleanup.statusIcon.icon_name = 'dialog-error-symbolic';
+            cleanup.statusIcon.css_classes = ['error'];
         });
     }
 
-    _checkDependencies() {
-        if (!this._depRows) return;
+    _checkDependencies(cleanup) {
+        if (!cleanup.depRows) return;
 
-        // Update all dependency status
-        for (const [depName, depInfo] of Object.entries(this._depRows)) {
-            this._checkCommand(depName).then((available) => {
+        for (const [depName, depInfo] of Object.entries(cleanup.depRows)) {
+            const cancellable = new Gio.Cancellable();
+            cleanup.pendingOperations.add(cancellable);
+
+            this._checkCommand(depName, cancellable).then((available) => {
+                if (cancellable.is_cancelled()) return;
+
+                cleanup.pendingOperations.delete(cancellable);
+
                 if (available) {
                     depInfo.icon.icon_name = 'emblem-ok-symbolic';
                     depInfo.icon.css_classes = ['success'];
@@ -300,65 +318,79 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
                 } else {
                     depInfo.icon.icon_name = 'dialog-error-symbolic';
                     depInfo.icon.css_classes = ['error'];
-                    depInfo.row.subtitle = _('Not installed - run: sudo apt install ') + depInfo.package;
+                    depInfo.row.subtitle = _('Not installed') + depInfo.package;
                 }
             }).catch(() => {
+                if (cancellable.is_cancelled()) return;
+
+                cleanup.pendingOperations.delete(cancellable);
                 depInfo.icon.icon_name = 'dialog-warning-symbolic';
                 depInfo.icon.css_classes = ['warning'];
                 depInfo.row.subtitle = _('Unable to check status');
             });
         }
 
-        // Also update language status
-        this._updateLanguageStatus();
+        this._updateLanguageStatus(cleanup);
     }
 
-    _checkCommand(command) {
+    _checkCommand(command, cancellable) {
         return new Promise((resolve, reject) => {
-            try {
-                const proc = Gio.Subprocess.new(
-                    ['which', command],
-                    Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
-                );
-
-                proc.wait_async(null, (proc, result) => {
-                    try {
-                        const success = proc.wait_finish(result);
-                        resolve(success && proc.get_exit_status() === 0);
-                    } catch (error) {
-                        resolve(false);
-                    }
-                });
-            } catch (error) {
+            if (cancellable.is_cancelled()) {
                 resolve(false);
+                return;
             }
+
+            const proc = Gio.Subprocess.new(
+                ['which', command],
+                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
+            );
+
+            proc.wait_async(cancellable, (proc, result) => {
+                if (cancellable.is_cancelled()) {
+                    resolve(false);
+                    return;
+                }
+
+                try {
+                    const success = proc.wait_finish(result);
+                    resolve(success && proc.get_exit_status() === 0);
+                } catch (error) {
+                    resolve(false);
+                }
+            });
         });
     }
 
-    _checkTesseractLanguage(langCode) {
+    _checkTesseractLanguage(langCode, cancellable) {
         return new Promise((resolve, reject) => {
-            try {
-                const proc = Gio.Subprocess.new(
-                    ['tesseract', '--list-langs'],
-                    Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
-                );
+            if (cancellable.is_cancelled()) {
+                resolve(false);
+                return;
+            }
 
-                proc.communicate_utf8_async(null, null, (proc, result) => {
-                    try {
-                        const [success, stdout, stderr] = proc.communicate_utf8_finish(result);
-                        if (success) {
-                            const langs = stdout.toLowerCase();
-                            resolve(langs.includes(langCode.toLowerCase()));
-                        } else {
-                            resolve(false);
-                        }
-                    } catch (error) {
+            const proc = Gio.Subprocess.new(
+                ['tesseract', '--list-langs'],
+                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
+            );
+
+            proc.communicate_utf8_async(null, cancellable, (proc, result) => {
+                if (cancellable.is_cancelled()) {
+                    resolve(false);
+                    return;
+                }
+
+                try {
+                    const [success, stdout, stderr] = proc.communicate_utf8_finish(result);
+                    if (success) {
+                        const langs = stdout.toLowerCase();
+                        resolve(langs.includes(langCode.toLowerCase()));
+                    } else {
                         resolve(false);
                     }
-                });
-            } catch (error) {
-                resolve(false);
-            }
+                } catch (error) {
+                    resolve(false);
+                }
+            });
         });
     }
 }
