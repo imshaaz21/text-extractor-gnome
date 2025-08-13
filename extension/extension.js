@@ -164,25 +164,18 @@ export default class TextExtractorExtension extends Extension {
     }
 
     _checkCommand(command) {
-        try {
-            const [success] = GLib.spawn_command_line_sync(`which ${command}`);
-            return success;
-        } catch (e) {
-            return false;
-        }
+        return this._execCheck(['which', command])
+            .then(() => true)
+            .catch(() => false);
     }
 
     _checkTesseractLanguage(langCode) {
-        try {
-            const [success, stdout] = GLib.spawn_command_line_sync('tesseract --list-langs');
-            if (success) {
-                const langs = new TextDecoder().decode(stdout);
-                return langs.includes(langCode);
-            }
-        } catch (e) {
+        return this._execCommunicate(['tesseract', '--list-langs']).then(result => {
+            return result.includes(langCode);
+        }).catch(e => {
             this._logError("Failed to check Tesseract language", e);
-        }
-        return false;
+            return false;
+        })
     }
 
     _generateInstallCommands(missingDeps) {
@@ -450,5 +443,88 @@ export default class TextExtractorExtension extends Extension {
 
     _logError(message, error) {
         console.error(`[Text Extractor] ${message}:`, error);
+    }
+
+
+    /**
+     * Execute a command asynchronously and check the exit status.
+     *
+     * If given, @cancellable can be used to stop the process before it finishes.
+     *
+     * @param {string[]} argv - a list of string arguments
+     * @param {Gio.Cancellable} [cancellable] - optional cancellable object
+     * @returns {Promise<boolean>} - The process success
+     */
+    async _execCheck(argv, cancellable = null) {
+        let cancelId = 0;
+        const proc = new Gio.Subprocess({
+            argv,
+            flags: Gio.SubprocessFlags.NONE,
+        });
+        proc.init(cancellable);
+
+        if (cancellable instanceof Gio.Cancellable)
+            cancelId = cancellable.connect(() => proc.force_exit());
+
+        try {
+            const success = await proc.wait_check_async(null);
+
+            if (!success) {
+                const status = proc.get_exit_status();
+
+                throw new Gio.IOErrorEnum({
+                    code: Gio.IOErrorEnum.FAILED,
+                    message: `Command '${argv}' failed with exit code ${status}`,
+                });
+            }
+        } finally {
+            if (cancelId > 0)
+                cancellable.disconnect(cancelId);
+        }
+    }
+
+    /**
+     * Execute a command asynchronously and return the output from `stdout` on
+     * success or throw an error with output from `stderr` on failure.
+     *
+     * If given, @input will be passed to `stdin` and @cancellable can be used to
+     * stop the process before it finishes.
+     *
+     * @param {string[]} argv - a list of string arguments
+     * @param {string} [input] - Input to write to `stdin` or %null to ignore
+     * @param {Gio.Cancellable} [cancellable] - optional cancellable object
+     * @returns {Promise<string>} - The process output
+     */
+    async _execCommunicate(argv, input = null, cancellable = null) {
+        let cancelId = 0;
+        let flags = Gio.SubprocessFlags.STDOUT_PIPE |
+            Gio.SubprocessFlags.STDERR_PIPE;
+
+        if (input !== null)
+            flags |= Gio.SubprocessFlags.STDIN_PIPE;
+
+        const proc = new Gio.Subprocess({argv, flags});
+        proc.init(cancellable);
+
+        if (cancellable instanceof Gio.Cancellable)
+            cancelId = cancellable.connect(() => proc.force_exit());
+
+        try {
+            const [stdout, stderr] = await proc.communicate_utf8_async(input, null);
+
+            const status = proc.get_exit_status();
+
+            if (status !== 0) {
+                throw new Gio.IOErrorEnum({
+                    code: Gio.IOErrorEnum.FAILED,
+                    message: stderr ? stderr.trim() : `Command '${argv}' failed with exit code ${status}`,
+                });
+            }
+
+            return stdout.trim();
+        } finally {
+            if (cancelId > 0)
+                cancellable.disconnect(cancelId);
+        }
     }
 }
