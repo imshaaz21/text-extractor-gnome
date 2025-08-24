@@ -18,7 +18,6 @@ A OCR text extraction tool for GNOME Shell that captures text from screen select
 The extension requires the following packages to be installed:
 
 - **tesseract-ocr**: OCR engine for text extraction
-- **xclip**: Clipboard utility for copying text
 - **gnome-screenshot**: Screenshot utility for capturing screen areas
 
 ### Optional Dependencies
@@ -63,13 +62,13 @@ The extension requires the following packages to be installed:
 #### Ubuntu/Debian:
 ```bash
   sudo apt update
-  sudo apt install tesseract-ocr tesseract-ocr-tam xclip gnome-screenshot
+  sudo apt install tesseract-ocr gnome-screenshot
   sudo apt install tesseract-ocr-tam # Optional for Tamil support
 ```
 
 #### Fedora:
 ```bash
-  sudo dnf install tesseract tesseract-langpack-tam xclip gnome-screenshot
+  sudo dnf install tesseract gnome-screenshot
   sudo dnf install tesseract-langpack-tam # Optional for Tamil support
 ```
 

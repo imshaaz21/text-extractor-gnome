@@ -59,7 +59,7 @@ install_debian() {
     sudo apt update
 
     # Install basic dependencies
-    sudo apt install -y tesseract-ocr xclip gnome-screenshot
+    sudo apt install -y tesseract-ocr gnome-screenshot
 
     # Install Tamil language pack if requested
     if [ "$INSTALL_TAMIL" = "yes" ]; then
@@ -72,7 +72,7 @@ install_debian() {
 install_fedora() {
     print_status "Installing dependencies for Fedora..."
 
-    sudo dnf install -y tesseract xclip gnome-screenshot
+    sudo dnf install -y tesseract gnome-screenshot
 
     # Install Tamil language pack if requested
     if [ "$INSTALL_TAMIL" = "yes" ]; then
@@ -113,13 +113,6 @@ verify_installation() {
         all_good=false
     fi
 
-    # Check xclip
-    if check_command xclip; then
-        print_success "✓ xclip is installed"
-    else
-        print_error "✗ xclip is not installed"
-        all_good=false
-    fi
 
     # Check gnome-screenshot
     if check_command gnome-screenshot; then
@@ -172,7 +165,6 @@ main() {
             echo
             print_status "Please install the following packages manually:"
             echo "  • tesseract-ocr (or tesseract)"
-            echo "  • xclip"
             echo "  • gnome-screenshot"
             if [ "$INSTALL_TAMIL" = "yes" ]; then
                 echo "  • tesseract-ocr-tam (Tamil language pack)"

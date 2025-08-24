@@ -1,0 +1,30 @@
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# IDE - JetBrains (IntelliJ, PyCharm, etc)
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea_modules/
+out/
+
+
+
+# Editor temporary/backup files
+*~
+*.swp
+*.swo
+*.swn
+*.bak
+*.tmp
+*#
+.#*
+
+
+*.compiled

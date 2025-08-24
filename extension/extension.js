@@ -357,40 +357,19 @@ export default class TextExtractorExtension extends Extension {
 
     _copyToClipboard(text, screenshotPath, ocrPath) {
         try {
-            const proc = Gio.Subprocess.new(
-                ['xclip', '-selection', 'clipboard'],
-                Gio.SubprocessFlags.STDIN_PIPE
+            // Use St.Clipboard instead of xclip
+            const clipboard = St.Clipboard.get_default();
+            clipboard.set_text(St.ClipboardType.CLIPBOARD, text);
+
+            const wordCount = text.split(/\s+/).length;
+            this._showNotification(
+                _('Text Extractor'),
+                _(`Extracted text and copied to clipboard!`)
             );
 
-            const stdin = proc.get_stdin_pipe();
-            const stream = new Gio.DataOutputStream({
-                base_stream: stdin
-            });
-
-            stream.put_string(text, null);
-            stream.close(null);
-
-            proc.wait_async(null, (proc, result) => {
-                try {
-                    const success = proc.wait_finish(result);
-                    if (success && proc.get_exit_status() === 0) {
-                        const wordCount = text.split(/\s+/).length;
-                        this._showNotification(
-                            _('Text Extractor'),
-                            _(`Extracted text and copied to clipboard!`)
-                        );
-                    } else {
-                        this._showNotification(_('Text Extractor'), _('Text extracted but failed to copy to clipboard'));
-                    }
-                } catch (error) {
-                    this._logError('Clipboard operation failed', error);
-                    this._showNotification(_('Text Extractor'), _('Text extracted but clipboard operation failed'));
-                }
-
-                this._cleanupTempFiles(screenshotPath, ocrPath);
-                this._isExtracting = false;
-            });
-
+            // Clean up and reset state
+            this._cleanupTempFiles(screenshotPath, ocrPath);
+            this._isExtracting = false;
         } catch (error) {
             this._logError('Failed to copy to clipboard', error);
             this._showNotification(_('Text Extractor'), _('Text extracted but failed to copy to clipboard'));
@@ -401,18 +380,9 @@ export default class TextExtractorExtension extends Extension {
 
     _copyToClipboardDirect(text) {
         try {
-            const proc = Gio.Subprocess.new(
-                ['xclip', '-selection', 'clipboard'],
-                Gio.SubprocessFlags.STDIN_PIPE
-            );
-
-            const stdin = proc.get_stdin_pipe();
-            const stream = new Gio.DataOutputStream({
-                base_stream: stdin
-            });
-
-            stream.put_string(text, null);
-            stream.close(null);
+            // Use St.Clipboard instead of xclip
+            const clipboard = St.Clipboard.get_default();
+            clipboard.set_text(St.ClipboardType.CLIPBOARD, text);
         } catch (error) {
             this._logError('Failed to copy to clipboard', error);
         }
