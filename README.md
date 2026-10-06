@@ -1,6 +1,6 @@
 # Text Extractor - GNOME Shell Extension
 
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-imshaaz-FFDD00?style=flat-square&logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/imshaaz)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy_me_a_coffee-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/imshaaz)
 
 A OCR text extraction tool for GNOME Shell that captures text from screen selections and copies it to the clipboard. Similar to PowerToys Text Extractor for Windows.
 
