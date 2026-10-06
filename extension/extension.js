@@ -1,11 +1,11 @@
 import Gio from 'gi://Gio';
 import St from 'gi://St';
-import GLib from 'gi://GLib';
 
 import {Extension, gettext as _, ngettext, pgettext} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
+import * as Screenshot from 'resource:///org/gnome/shell/ui/screenshot.js';
 
 const REQUIRED_DEPENDENCIES = [
     {
@@ -222,7 +222,8 @@ export default class TextExtractorExtension extends Extension {
         const ocrOutputPath = `/tmp/text-extracted-${Date.now()}`;
         const langCode = this._settings.get_string('language') || 'eng';
 
-        this._takeScreenshot(screenshotPath, ocrOutputPath, langCode);
+        // this._takeScreenshot(screenshotPath, ocrOutputPath, langCode);
+        this._openScreenshotUI(langCode);
     }
 
     _takeScreenshot(screenshotPath, ocrOutputPath, langCode) {
@@ -453,18 +454,7 @@ export default class TextExtractorExtension extends Extension {
         }
     }
 
-    /**
-     * Execute a command asynchronously and return the output from `stdout` on
-     * success or throw an error with output from `stderr` on failure.
-     *
-     * If given, @input will be passed to `stdin` and @cancellable can be used to
-     * stop the process before it finishes.
-     *
-     * @param {string[]} argv - a list of string arguments
-     * @param {string} [input] - Input to write to `stdin` or %null to ignore
-     * @param {Gio.Cancellable} [cancellable] - optional cancellable object
-     * @returns {Promise<string>} - The process output
-     */
+
     async _execCommunicate(argv, input = null, cancellable = null) {
         let cancelId = 0;
         let flags = Gio.SubprocessFlags.STDOUT_PIPE |
@@ -495,6 +485,84 @@ export default class TextExtractorExtension extends Extension {
         } finally {
             if (cancelId > 0)
                 cancellable.disconnect(cancelId);
+        }
+    }
+
+
+    _openScreenshotUI(langCode) {
+        try {
+            // Open the screenshot UI in area selection mode
+            Main.screenshotUI.open().then(() => {
+                // Connect to the screenshot-taken signal
+                const connection = Main.screenshotUI.connect('screenshot-taken', (obj, screenshot) => {
+                    Main.screenshotUI.disconnect(connection);
+
+                    if (screenshot) {
+                        this._handleScreenshot(screenshot, langCode);
+                    } else {
+                        this._showNotification(_('Text Extractor'), _('Screenshot was cancelled'));
+                        this._isExtracting = false;
+                    }
+                });
+
+                // Handle cancellation
+                const closedConnection = Main.screenshotUI.connect('closed', () => {
+                    Main.screenshotUI.disconnect(closedConnection);
+                    if (this._isExtracting) {
+                        this._isExtracting = false;
+                    }
+                });
+            }).catch(error => {
+                this._logError('Failed to open screenshot UI', error);
+                this._showNotification(_('Text Extractor'), _('Failed to open screenshot UI'));
+                this._isExtracting = false;
+            });
+        } catch (error) {
+            this._logError('Failed to start screenshot UI', error);
+            this._showNotification(_('Text Extractor'), _('Failed to start screenshot'));
+            this._isExtracting = false;
+        }
+    }
+
+    _handleScreenshot(screenshot, langCode) {
+        try {
+            const stream = screenshot.get_stream();
+            const screenshotPath = `/tmp/text-extractor-screenshot-${Date.now()}.png`;
+            const ocrOutputPath = `/tmp/text-extracted-${Date.now()}`;
+
+            this._saveScreenshotToFile(stream, screenshotPath).then(() => {
+                this._processOCR(screenshotPath, ocrOutputPath, langCode);
+            }).catch(error => {
+                this._logError('Failed to save screenshot', error);
+                this._showNotification(_('Text Extractor'), _('Failed to save screenshot'));
+                this._isExtracting = false;
+            });
+        } catch (error) {
+            this._logError('Failed to handle screenshot', error);
+            this._showNotification(_('Text Extractor'), _('Failed to process screenshot'));
+            this._isExtracting = false;
+        }
+    }
+
+    async _saveScreenshotToFile(stream, filePath) {
+        try {
+            const file = Gio.File.new_for_path(filePath);
+            const outputStream = await file.replace_async(
+                null,
+                false,
+                Gio.FileCreateFlags.REPLACE_DESTINATION,
+                GLib.PRIORITY_DEFAULT,
+                null
+            );
+
+            await outputStream.splice_async(
+                stream,
+                Gio.OutputStreamSpliceFlags.CLOSE_SOURCE | Gio.OutputStreamSpliceFlags.CLOSE_TARGET,
+                GLib.PRIORITY_DEFAULT,
+                null
+            );
+        } catch (error) {
+            throw error;
         }
     }
 }

@@ -1,5 +1,7 @@
 # Text Extractor - GNOME Shell Extension
 
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-imshaaz-FFDD00?style=flat-square&logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/imshaaz)
+
 A OCR text extraction tool for GNOME Shell that captures text from screen selections and copies it to the clipboard. Similar to PowerToys Text Extractor for Windows.
 
 ## Features
@@ -114,3 +116,7 @@ To remove the extension, run the following command:
 ## License
 
 This project is licensed under the [GNU General Public License v3.0](./LICENSE).
+
+## Support
+
+If this saves you time, you can [buy me a coffee](https://buymeacoffee.com/imshaaz).
