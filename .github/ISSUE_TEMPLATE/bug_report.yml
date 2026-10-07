@@ -1,0 +1,35 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: input
+    id: shell
+    attributes:
+      label: GNOME Shell version
+      description: Output of `gnome-shell --version`
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Distribution
+      placeholder: Ubuntu 24.04
+    validations:
+      required: true
+  - type: input
+    id: tesseract
+    attributes:
+      label: Tesseract version and language
+      placeholder: tesseract 5.3.4, eng+tam
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Output of `journalctl -f -o cat /usr/bin/gnome-shell` while reproducing
+      render: shell
