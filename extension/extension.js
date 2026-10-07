@@ -42,7 +42,7 @@ export default class TextExtractorExtension extends Extension {
     _createPanelButton() {
         this._indicator = new PanelMenu.Button(0.0, this.metadata.name, false);
         this._indicator.add_child(new St.Icon({
-            icon_name: 'document-edit-symbolic',
+            icon_name: 'insert-text-symbolic',
             style_class: 'system-status-icon',
         }));
 

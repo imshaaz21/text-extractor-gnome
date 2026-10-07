@@ -33,7 +33,21 @@ The extension does not install anything itself. When Tesseract or a language is 
 | Arch | `sudo pacman -S tesseract` | `sudo pacman -S tesseract-data-tam` |
 | openSUSE | `sudo zypper install tesseract-ocr` | `sudo zypper install tesseract-ocr-traineddata-tam` |
 
-Language codes are Tesseract's: `eng`, `deu`, `tam`, `sin`, `chi_sim` and so on. See the [full list](https://tesseract-ocr.github.io/tessdoc/Data-Files-in-different-versions.html).
+## Adding a language
+
+English works out of the box. To read another language:
+
+1. **Find its Tesseract code**, for example `deu` (German), `tam` (Tamil), `sin` (Sinhala), `chi_sim` (Chinese, simplified). See the [full list](https://tesseract-ocr.github.io/tessdoc/Data-Files-in-different-versions.html).
+2. **Install the language pack** with your package manager, using the table above. For Sinhala on Ubuntu: `sudo apt install tesseract-ocr-sin`.
+3. **Open Preferences → Text Recognition**, press the refresh button, and tick the language. Tick several to read mixed-language text.
+
+The extension lists whatever Tesseract has installed, so no extension update is needed for new languages.
+
+### A language your distribution does not package
+
+1. Download its `.traineddata` file from [tessdata_best](https://github.com/tesseract-ocr/tessdata_best) (best quality) or [tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast) (faster).
+2. Put it in a folder of your own, for example `~/tessdata`, together with `eng.traineddata` and any other language you still want. Tesseract reads one folder only.
+3. In Preferences, enter that folder in **Tessdata folder** and press apply, then tick the language.
 
 ## Installation
 
