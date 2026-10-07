@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <g fill="#bebebe">
+    <!-- selection frame: four corners -->
+    <path d="M1 1h4v1.5H2.5V5H1zM11 1h4v4h-1.5V2.5H11zM1 11h1.5v2.5H5V15H1zM13.5 11H15v4h-4v-1.5h2.5z"/>
+    <!-- text lines -->
+    <path d="M4.5 5h7v1.5h-7zM4.5 7.25h7v1.5h-7zM4.5 9.5h4.5V11H4.5z"/>
+  </g>
+</svg>

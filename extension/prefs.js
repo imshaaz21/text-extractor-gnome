@@ -1,38 +1,27 @@
-import Gio from 'gi://Gio';
 import Adw from 'gi://Adw';
+import Gdk from 'gi://Gdk';
+import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk';
 
 import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
+import * as Ocr from './ocr.js';
+
 export default class TextExtractorPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
+        // State lives in this closure rather than on `this`, so it is collected when the window closes.
+        const settings = this.getSettings();
+        let scan = null;
+        let installCmd = null;
+        let languageRows = [];
+
         window.set_title(_('Text Extractor Preferences'));
-        window.set_default_size(600, 500);
-
-        // A cleanup object to track resources
-        const cleanup = {
-            settings: null,
-            languageStatusRow: null,
-            statusIcon: null,
-            depRows: {},
-            pendingOperations: new Set()
-        };
-
+        window.set_default_size(600, 640);
         window.connect('close-request', () => {
-            cleanup.pendingOperations.forEach(cancellable => {
-                if (cancellable && !cancellable.is_cancelled()) {
-                    cancellable.cancel();
-                }
-            });
-            cleanup.pendingOperations.clear();
-
-            cleanup.settings = null;
-            cleanup.languageStatusRow = null;
-            cleanup.statusIcon = null;
-            cleanup.depRows = null;
+            scan?.cancel();
+            scan = null;
+            languageRows = [];
         });
-
-        cleanup.settings = this.getSettings();
 
         const page = new Adw.PreferencesPage({
             title: _('General'),
@@ -40,357 +29,236 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
         });
         window.add(page);
 
-        // Create preference groups
-        this._createAppearanceGroup(page, cleanup);
-        this._createLanguageGroup(page, cleanup);
-        this._createDependenciesGroup(page, cleanup);
-        this._createAboutGroup(page);
-    }
-
-    _createAppearanceGroup(page, cleanup) {
-        const appearanceGroup = new Adw.PreferencesGroup({
-            title: _('Appearance'),
-            description: _('Configure how the extension appears in your desktop'),
-        });
-        page.add(appearanceGroup);
-
-        // Show indicator toggle
-        const showIndicatorRow = new Adw.SwitchRow({
+        const appearance = new Adw.PreferencesGroup({title: _('Appearance')});
+        const indicatorRow = new Adw.SwitchRow({
             title: _('Show Panel Indicator'),
             subtitle: _('Display the Text Extractor icon in the top panel'),
         });
+        settings.bind('show-indicator', indicatorRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        appearance.add(indicatorRow);
+        page.add(appearance);
 
-        cleanup.settings.bind('show-indicator', showIndicatorRow, 'active',
-            Gio.SettingsBindFlags.DEFAULT);
+        const shortcut = new Adw.PreferencesGroup({title: _('Shortcut')});
+        shortcut.add(this._shortcutRow(window, settings));
+        page.add(shortcut);
 
-        appearanceGroup.add(showIndicatorRow);
-    }
-
-    _createLanguageGroup(page, cleanup) {
-        const languageGroup = new Adw.PreferencesGroup({
-            title: _('OCR Language'),
-            description: _('Select the language for optical character recognition'),
+        const ocr = new Adw.PreferencesGroup({
+            title: _('Text Recognition'),
+            description: _('Any language installed for Tesseract can be used. Pick several to read mixed-language text.'),
         });
-        page.add(languageGroup);
+        page.add(ocr);
 
-        // Get current language
-        let currentLang = cleanup.settings.get_string('language');
+        const statusIcon = new Gtk.Image({valign: Gtk.Align.CENTER});
+        const statusRow = new Adw.ActionRow({title: _('Status'), use_markup: false, subtitle_lines: 0});
+        statusRow.add_prefix(statusIcon);
 
-        const rawLangs = this.metadata.languages || {eng: 'English'};
-        const LANGUAGES = {};
-
-        for (const [code, name] of Object.entries(rawLangs)) {
-            LANGUAGES[code] = _(name);
-        }
-
-        if (!Object.keys(LANGUAGES).includes(currentLang)) {
-            currentLang = 'eng';
-            cleanup.settings.set_string('language', currentLang);
-        }
-
-        let buttonGroup = null;
-
-        for (const [code, name] of Object.entries(LANGUAGES)) {
-            const row = new Adw.ActionRow({
-                title: name,
-                subtitle: this._getLanguageSubtitle(code),
-            });
-
-            const button = new Gtk.CheckButton({
-                valign: Gtk.Align.CENTER,
-            });
-
-            if (buttonGroup === null) {
-                buttonGroup = button;
-            } else {
-                button.group = buttonGroup;
-            }
-
-            button.active = currentLang === code;
-
-            button.connect('toggled', (btn) => {
-                if (btn.active) {
-                    cleanup.settings.set_string('language', code);
-                    this._updateLanguageStatus(cleanup);
-                }
-            });
-
-            row.add_suffix(button);
-            row.activatable_widget = button;
-            languageGroup.add(row);
-        }
-
-        this._createLanguageStatusRow(languageGroup, cleanup);
-    }
-
-    _createLanguageStatusRow(group, cleanup) {
-        cleanup.languageStatusRow = new Adw.ActionRow({
-            title: _('Language Pack Status'),
-            subtitle: _('Checking...'),
+        const copyButton = new Gtk.Button({
+            icon_name: 'edit-copy-symbolic',
+            tooltip_text: _('Copy install command'),
+            valign: Gtk.Align.CENTER,
+            visible: false,
         });
-
-        cleanup.statusIcon = new Gtk.Image({
-            icon_name: 'content-loading-symbolic',
+        const refreshButton = new Gtk.Button({
+            icon_name: 'view-refresh-symbolic',
+            tooltip_text: _('Check again'),
             valign: Gtk.Align.CENTER,
         });
+        statusRow.add_suffix(copyButton);
+        statusRow.add_suffix(refreshButton);
+        ocr.add(statusRow);
 
-        cleanup.languageStatusRow.add_suffix(cleanup.statusIcon);
-        group.add(cleanup.languageStatusRow);
+        const languagesRow = new Adw.ExpanderRow({title: _('Languages')});
+        ocr.add(languagesRow);
 
-        // Initial status check
-        this._updateLanguageStatus(cleanup);
-    }
-
-    _createDependenciesGroup(page, cleanup) {
-        const depsGroup = new Adw.PreferencesGroup({
-            title: _('System Dependencies'),
-            description: _('Required system packages for text extraction'),
+        const tessdataRow = new Adw.EntryRow({
+            title: _('Tessdata folder (replaces the system one)'),
+            text: settings.get_string('tessdata-dir'),
+            show_apply_button: true,
         });
-        page.add(depsGroup);
+        ocr.add(tessdataRow);
+        ocr.add(this._linkRow(_('Download more languages'), 'https://github.com/tesseract-ocr/tessdata_best',
+            'folder-download-symbolic'));
 
-        const checkDepsRow = new Adw.ActionRow({
-            title: _('Check Dependencies'),
-            subtitle: _('Verify that all required packages are installed'),
-        });
-
-        const checkButton = new Gtk.Button({
-            label: _('Check Now'),
-            css_classes: ['suggested-action'],
-            valign: Gtk.Align.CENTER,
-        });
-
-        checkButton.connect('clicked', () => {
-            this._checkDependencies(cleanup);
-        });
-
-        checkDepsRow.add_suffix(checkButton);
-        depsGroup.add(checkDepsRow);
-
-        this._createDependencyStatusRows(depsGroup, cleanup);
-    }
-
-    _createDependencyStatusRows(group, cleanup) {
-        const dependencies = [
-            {
-                name: 'tesseract',
-                title: _('Tesseract OCR'),
-                description: _('Optical Character Recognition engine'),
-                package: 'tesseract-ocr'
-            }
-        ];
-
-        for (const dep of dependencies) {
-            const row = new Adw.ActionRow({
-                title: dep.title,
-                subtitle: dep.description,
-            });
-
-            const statusIcon = new Gtk.Image({
-                icon_name: 'content-loading-symbolic',
-                valign: Gtk.Align.CENTER,
-            });
-
-            row.add_suffix(statusIcon);
-            group.add(row);
-
-            cleanup.depRows[dep.name] = {
-                row: row,
-                icon: statusIcon,
-                package: dep.package
-            };
-        }
-    }
-
-    _createAboutGroup(page) {
-        const aboutGroup = new Adw.PreferencesGroup({
-            title: _('About'),
-            description: _('Information about Text Extractor extension'),
-        });
-        page.add(aboutGroup);
-
-        // Version info
-        const versionRow = new Adw.ActionRow({
+        const about = new Adw.PreferencesGroup({title: _('About')});
+        about.add(new Adw.ActionRow({
             title: _('Version'),
-            subtitle: this.metadata['version-name'] || '1.0.0',
-        });
-        aboutGroup.add(versionRow);
+            subtitle: this.metadata['version-name'],
+        }));
+        about.add(this._linkRow(_('Source Code'), this.metadata.url, 'web-browser-symbolic'));
+        about.add(this._linkRow(_('Report an Issue'), `${this.metadata.url}/issues`, 'bug-symbolic'));
+        page.add(about);
 
-        // GitHub link
-        const githubRow = new Adw.ActionRow({
-            title: _('Source Code'),
-            subtitle: _('View on GitHub'),
-        });
+        const selected = () => Ocr.parseLanguages(settings.get_string('language'));
 
-        const githubButton = new Gtk.Button({
-            icon_name: 'web-browser-symbolic',
-            tooltip_text: _('Open GitHub Repository'),
-            valign: Gtk.Align.CENTER,
-        });
+        const setStatus = (kind, text, command = null) => {
+            statusIcon.icon_name = {
+                ok: 'emblem-ok-symbolic',
+                warn: 'dialog-warning-symbolic',
+                error: 'dialog-error-symbolic',
+            }[kind];
+            statusIcon.css_classes = [{ok: 'success', warn: 'warning', error: 'error'}[kind]];
+            statusRow.subtitle = text;
+            installCmd = command;
+            copyButton.visible = command !== null;
+        };
 
-        githubButton.connect('clicked', () => {
-            const url = this.metadata.url || 'https://github.com/imshaaz21/text-extractor-gnome';
-            Gio.AppInfo.launch_default_for_uri(url, null);
-        });
+        const clearLanguages = () => {
+            for (const row of languageRows)
+                languagesRow.remove(row);
+            languageRows = [];
+        };
 
-        githubRow.add_suffix(githubButton);
-        aboutGroup.add(githubRow);
+        const refreshSummary = () => {
+            languagesRow.subtitle = selected().map(Ocr.languageName).join(', ');
+        };
 
-        // Report issues
-        const issuesRow = new Adw.ActionRow({
-            title: _('Report Issues'),
-            subtitle: _('Found a bug? Report it on GitHub'),
-        });
+        const buildLanguages = installed => {
+            clearLanguages();
+            // Show a configured-but-missing language too, so the user sees why it is flagged.
+            const codes = [...new Set([...installed, ...selected()])];
 
-        const issuesButton = new Gtk.Button({
-            icon_name: 'bug-symbolic',
-            tooltip_text: _('Report an Issue'),
-            valign: Gtk.Align.CENTER,
-        });
-
-        issuesButton.connect('clicked', () => {
-            const url = (this.metadata.url || 'https://github.com/imshaaz21/text-extractor-gnome') + '/issues';
-            Gio.AppInfo.launch_default_for_uri(url, null);
-        });
-
-        issuesRow.add_suffix(issuesButton);
-        aboutGroup.add(issuesRow);
-    }
-
-    _getLanguageSubtitle(code) {
-        switch (code) {
-            case 'eng':
-                return _('English script, widely supported');
-            case 'tam':
-                return _('Tamil script, requires language pack');
-            default:
-                return _('Language code: ') + code;
-        }
-    }
-
-    _updateLanguageStatus(cleanup) {
-        if (!cleanup.languageStatusRow) return;
-
-        const currentLang = cleanup.settings.get_string('language');
-        const cancellable = new Gio.Cancellable();
-        cleanup.pendingOperations.add(cancellable);
-
-        // Check if the language is available
-        this._checkTesseractLanguage(currentLang, cancellable).then((available) => {
-            if (cancellable.is_cancelled()) return;
-
-            cleanup.pendingOperations.delete(cancellable);
-
-            if (available) {
-                cleanup.languageStatusRow.subtitle = _('Language pack is installed and ready');
-                cleanup.statusIcon.icon_name = 'emblem-ok-symbolic';
-                cleanup.statusIcon.css_classes = ['success'];
-            } else {
-                cleanup.languageStatusRow.subtitle = _('Language pack not found - please install it');
-                cleanup.statusIcon.icon_name = 'dialog-warning-symbolic';
-                cleanup.statusIcon.css_classes = ['warning'];
-            }
-        }).catch(() => {
-            if (cancellable.is_cancelled()) return;
-
-            cleanup.pendingOperations.delete(cancellable);
-            cleanup.languageStatusRow.subtitle = _('Unable to check language pack status');
-            cleanup.statusIcon.icon_name = 'dialog-error-symbolic';
-            cleanup.statusIcon.css_classes = ['error'];
-        });
-    }
-
-    _checkDependencies(cleanup) {
-        if (!cleanup.depRows) return;
-
-        for (const [depName, depInfo] of Object.entries(cleanup.depRows)) {
-            const cancellable = new Gio.Cancellable();
-            cleanup.pendingOperations.add(cancellable);
-
-            this._checkCommand(depName, cancellable).then((available) => {
-                if (cancellable.is_cancelled()) return;
-
-                cleanup.pendingOperations.delete(cancellable);
-
-                if (available) {
-                    depInfo.icon.icon_name = 'emblem-ok-symbolic';
-                    depInfo.icon.css_classes = ['success'];
-                    depInfo.row.subtitle = _('Installed and ready');
-                } else {
-                    depInfo.icon.icon_name = 'dialog-error-symbolic';
-                    depInfo.icon.css_classes = ['error'];
-                    depInfo.row.subtitle = _('Not installed') + depInfo.package;
-                }
-            }).catch(() => {
-                if (cancellable.is_cancelled()) return;
-
-                cleanup.pendingOperations.delete(cancellable);
-                depInfo.icon.icon_name = 'dialog-warning-symbolic';
-                depInfo.icon.css_classes = ['warning'];
-                depInfo.row.subtitle = _('Unable to check status');
-            });
-        }
-
-        this._updateLanguageStatus(cleanup);
-    }
-
-    _checkCommand(command, cancellable) {
-        return new Promise((resolve, reject) => {
-            if (cancellable.is_cancelled()) {
-                resolve(false);
-                return;
-            }
-
-            const proc = Gio.Subprocess.new(
-                ['which', command],
-                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
-            );
-
-            proc.wait_async(cancellable, (proc, result) => {
-                if (cancellable.is_cancelled()) {
-                    resolve(false);
-                    return;
-                }
-
-                try {
-                    const success = proc.wait_finish(result);
-                    resolve(success && proc.get_exit_status() === 0);
-                } catch (error) {
-                    resolve(false);
-                }
-            });
-        });
-    }
-
-    _checkTesseractLanguage(langCode, cancellable) {
-        return new Promise((resolve, reject) => {
-            if (cancellable.is_cancelled()) {
-                resolve(false);
-                return;
-            }
-
-            const proc = Gio.Subprocess.new(
-                ['tesseract', '--list-langs'],
-                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
-            );
-
-            proc.communicate_utf8_async(null, cancellable, (proc, result) => {
-                if (cancellable.is_cancelled()) {
-                    resolve(false);
-                    return;
-                }
-
-                try {
-                    const [success, stdout, stderr] = proc.communicate_utf8_finish(result);
-                    if (success) {
-                        const langs = stdout.toLowerCase();
-                        resolve(langs.includes(langCode.toLowerCase()));
-                    } else {
-                        resolve(false);
+            for (const code of codes) {
+                const check = new Gtk.CheckButton({
+                    valign: Gtk.Align.CENTER,
+                    active: selected().includes(code),
+                });
+                const row = new Adw.ActionRow({
+                    title: Ocr.languageName(code),
+                    subtitle: installed.includes(code) ? '' : _('Not installed'),
+                    activatable_widget: check,
+                });
+                row.add_suffix(check);
+                row.code = code;
+                row.check = check;
+                check.connect('toggled', () => {
+                    const chosen = languageRows.filter(r => r.check.active).map(r => r.code);
+                    if (chosen.length === 0) {
+                        check.active = true; // at least one language is required
+                        return;
                     }
-                } catch (error) {
-                    resolve(false);
+                    settings.set_string('language', chosen.join('+'));
+                    refresh();
+                });
+                languagesRow.add_row(row);
+                languageRows.push(row);
+            }
+            refreshSummary();
+        };
+
+        async function refresh() {
+            scan?.cancel();
+            const cancellable = scan = new Gio.Cancellable();
+            setStatus('warn', _('Checking…'));
+
+            try {
+                if (!Ocr.isInstalled()) {
+                    clearLanguages();
+                    const cmd = Ocr.installCommand(selected());
+                    setStatus('error', cmd
+                        ? _('Tesseract is not installed. Run: %s').format(cmd)
+                        : _('Tesseract is not installed. Install it with your package manager.'), cmd);
+                    return;
                 }
-            });
+
+                const installed = await Ocr.listLanguages(settings.get_string('tessdata-dir'), cancellable);
+                if (cancellable.is_cancelled())
+                    return;
+
+                const missing = selected().filter(l => !installed.includes(l));
+                if (missing.length === 0) {
+                    setStatus('ok', _('Ready. %d languages available.').format(installed.length));
+                } else {
+                    const cmd = Ocr.installCommand(missing);
+                    setStatus('warn', cmd
+                        ? _('Missing: %s. Run: %s').format(missing.join(', '), cmd)
+                        : _('Missing: %s. Install the matching Tesseract language data.').format(missing.join(', ')),
+                    cmd);
+                }
+                // Rebuild the rows only when the set of languages changed (not on every tick).
+                const wanted = [...new Set([...installed, ...selected()])];
+                if (wanted.join() !== languageRows.map(r => r.code).join())
+                    buildLanguages(installed);
+                else
+                    refreshSummary();
+            } catch (e) {
+                if (cancellable.is_cancelled())
+                    return;
+                console.error(`[Text Extractor] ${e.message}`);
+                clearLanguages();
+                setStatus('error', _('Tesseract could not list its languages. Check the tessdata folder below.'));
+            }
+        }
+
+        copyButton.connect('clicked', () => {
+            if (installCmd)
+                Gdk.Display.get_default().get_clipboard().set(installCmd);
         });
+        refreshButton.connect('clicked', () => refresh());
+        tessdataRow.connect('apply', () => {
+            settings.set_string('tessdata-dir', tessdataRow.text.trim());
+            refresh();
+        });
+
+        refresh();
+    }
+
+    /** Row showing the current shortcut; activating it opens a small key-capture window. */
+    _shortcutRow(window, settings) {
+        const KEY = 'extract-shortcut';
+        const shown = new Gtk.ShortcutLabel({valign: Gtk.Align.CENTER, disabled_text: _('Disabled')});
+        const sync = () => {
+            shown.accelerator = settings.get_strv(KEY)[0] ?? '';
+        };
+        sync();
+        const changedId = settings.connect(`changed::${KEY}`, sync);
+        window.connect('close-request', () => settings.disconnect(changedId));
+
+        const row = new Adw.ActionRow({
+            title: _('Extract Text'),
+            subtitle: _('Click to change. Works from anywhere in the desktop.'),
+            activatable: true,
+        });
+        row.add_suffix(shown);
+
+        row.connect('activated', () => {
+            const dialog = new Gtk.Window({
+                title: _('Set Shortcut'),
+                modal: true,
+                transient_for: window,
+                resizable: false,
+                default_width: 360,
+                default_height: 140,
+                child: new Gtk.Label({
+                    label: _('Press the new shortcut\nEsc cancels, Backspace disables'),
+                    justify: Gtk.Justification.CENTER,
+                    margin_top: 24, margin_bottom: 24, margin_start: 24, margin_end: 24,
+                }),
+            });
+
+            const keys = new Gtk.EventControllerKey();
+            keys.connect('key-pressed', (_c, keyval, _keycode, state) => {
+                const mods = state & Gtk.accelerator_get_default_mod_mask();
+                if (mods === 0 && keyval === Gdk.KEY_Escape) {
+                    dialog.close();
+                } else if (mods === 0 && keyval === Gdk.KEY_BackSpace) {
+                    settings.set_strv(KEY, []);
+                    dialog.close();
+                } else if (Gtk.accelerator_valid(keyval, mods)) { // ignores bare modifier presses
+                    settings.set_strv(KEY, [Gtk.accelerator_name(Gdk.keyval_to_lower(keyval), mods)]);
+                    dialog.close();
+                }
+                return Gdk.EVENT_STOP;
+            });
+            dialog.add_controller(keys);
+            dialog.present();
+        });
+        return row;
+    }
+
+    _linkRow(title, url, icon) {
+        const row = new Adw.ActionRow({title, subtitle: url, activatable: true});
+        row.add_suffix(new Gtk.Image({icon_name: icon, valign: Gtk.Align.CENTER}));
+        row.connect('activated', () => Gio.AppInfo.launch_default_for_uri(url, null));
+        return row;
     }
 }

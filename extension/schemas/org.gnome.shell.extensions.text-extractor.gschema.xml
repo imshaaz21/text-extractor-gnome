@@ -3,8 +3,18 @@
     <schema id="org.gnome.shell.extensions.text-extractor" path="/org/gnome/shell/extensions/text-extractor/">
         <key name="language" type="s">
             <default>'eng'</default>
-            <summary>OCR Language</summary>
-            <description>The language used for OCR text extraction.</description>
+            <summary>OCR languages</summary>
+            <description>Tesseract language codes joined with '+', for example 'eng+tam'.</description>
+        </key>
+        <key name="tessdata-dir" type="s">
+            <default>''</default>
+            <summary>Extra tessdata folder</summary>
+            <description>Folder holding custom .traineddata files. Empty uses tesseract's default.</description>
+        </key>
+        <key name="extract-shortcut" type="as">
+            <default>['&lt;Super&gt;&lt;Shift&gt;t']</default>
+            <summary>Extract text shortcut</summary>
+            <description>Keyboard shortcut that starts text extraction. Empty disables it.</description>
         </key>
         <key name="show-indicator" type="b">
             <default>true</default>
