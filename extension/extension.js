@@ -12,6 +12,7 @@ import * as Ocr from './ocr.js';
 
 const SHORTCUT_KEY = 'extract-shortcut';
 const SHELL_TOAST_ICON = 'screenshot-recorded-symbolic';
+const AREA_MODE_BUTTONS = ['_selectionButton', '_screenButton', '_windowButton'];
 
 export default class TextExtractorExtension extends Extension {
     enable() {
@@ -19,6 +20,7 @@ export default class TextExtractorExtension extends Extension {
         this._settings = this.getSettings();
         this._isExtracting = false;
         this._ocrRunning = false;
+        this._previousMode = null;
         this._uiSignals = [];
 
         this._createPanelButton();
@@ -46,13 +48,13 @@ export default class TextExtractorExtension extends Extension {
     _createPanelButton() {
         this._indicator = new PanelMenu.Button(0.0, this.metadata.name, false);
         this._indicator.add_child(new St.Icon({
-            gicon: Gio.icon_new_for_string(`${this.path}/icons/text-extractor-symbolic.svg`),
+            icon_name: 'document-edit-symbolic',
             style_class: 'system-status-icon',
         }));
 
         const menu = this._indicator.menu;
 
-        const extractItem = new PopupMenu.PopupMenuItem(_('Extract Text from Screen'));
+        const extractItem = new PopupMenu.PopupImageMenuItem(_('Extract Text from Screen'), 'edit-select-all-symbolic');
         extractItem.connect('activate', () => this._extractText());
         menu.addMenuItem(extractItem);
 
@@ -64,7 +66,7 @@ export default class TextExtractorExtension extends Extension {
 
         menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        const prefsItem = new PopupMenu.PopupMenuItem(_('Preferences'));
+        const prefsItem = new PopupMenu.PopupImageMenuItem(_('Preferences'), 'preferences-system-symbolic');
         prefsItem.connect('activate', () => this.openPreferences());
         menu.addMenuItem(prefsItem);
 
@@ -133,6 +135,9 @@ export default class TextExtractorExtension extends Extension {
                 if (!this._ocrRunning)
                     this._isExtracting = false;
             });
+
+            // Shell remembers the last capture mode, so note it and put it back afterwards.
+            this._previousMode = AREA_MODE_BUTTONS.map(name => ui[name]).find(button => button?.checked);
 
             // Strip the UI down to a snipping tool: hide the mode and video buttons and capture
             // when the drag ends. These are private widgets, so every access is optional; if a
@@ -208,6 +213,11 @@ export default class TextExtractorExtension extends Extension {
             object.disconnect(id);
         this._uiSignals = [];
         Main.screenshotUI._panel?.show();
+
+        if (this._previousMode) {
+            this._previousMode.checked = true;
+            this._previousMode = null;
+        }
     }
 
     _preview(text) {

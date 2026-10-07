@@ -3,7 +3,7 @@ DEST := $(HOME)/.local/share/gnome-shell/extensions/$(UUID)
 
 .PHONY: pack install uninstall nested
 pack:      ## build dist/$(UUID).shell-extension.zip for extensions.gnome.org
-	gnome-extensions pack extension --extra-source=ocr.js --extra-source=icons --force --out-dir=dist
+	gnome-extensions pack extension --extra-source=ocr.js --force --out-dir=dist
 
 install: pack ## install the packed build for the current user
 	gnome-extensions install --force dist/$(UUID).shell-extension.zip

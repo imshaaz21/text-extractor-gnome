@@ -31,4 +31,3 @@ jobs:
         run: |
           unzip -l dist/*.shell-extension.zip
           unzip -l dist/*.shell-extension.zip | grep -q ocr.js
-          unzip -l dist/*.shell-extension.zip | grep -q text-extractor-symbolic.svg
