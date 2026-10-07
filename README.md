@@ -1,122 +1,86 @@
 # Text Extractor - GNOME Shell Extension
 
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+![GNOME Shell 45-51](https://img.shields.io/badge/GNOME_Shell-45%E2%80%9351-4a86cf)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy_me_a_coffee-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/imshaaz)
 
-A OCR text extraction tool for GNOME Shell that captures text from screen selections and copies it to the clipboard. Similar to PowerToys Text Extractor for Windows.
+Select any area of your screen and get its text on the clipboard. Like PowerToys Text Extractor, for GNOME.
 
 ## Features
 
-- 🖼️ **Screen Area Selection**: Select any area of your screen to extract text from
-- 📋 **Clipboard Integration**: Automatically copies extracted text to clipboard
-- 🌐 **Multi-language Support**: Supports English and Tamil (தமிழ்) languages
-- ⚡ **Fast & Reliable**: Uses Tesseract OCR engine for accurate text recognition
+- 🖼️ **Uses GNOME's own screenshot tool** to select the area
+- 📋 **Copies the text to the clipboard**
+- 🌐 **Any language** Tesseract supports. The list comes from what you have installed, so there is nothing to configure in the extension
+- ⌨️ **Keyboard shortcut** (default <kbd>Super</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>, configurable)
+- 🔀 **Mixed-language text**: tick several languages at once
+- 🧩 **Bring your own models**: point the extension at a folder of custom `.traineddata` files
 
-## Screenshots
-![img.png](docs/img.png)
+![screenshot](docs/img.png)
 
 ## Requirements
 
-### System Dependencies
-The extension requires the following packages to be installed:
+GNOME Shell 45 to 51, and [Tesseract](https://github.com/tesseract-ocr/tesseract).
 
-- **tesseract-ocr**: OCR engine for text extraction
-- **gnome-screenshot**: Screenshot utility for capturing screen areas
+The extension installs nothing itself. If Tesseract or a language is missing, **Preferences → Text Recognition** shows the exact command for your distribution, with a copy button.
 
-### Optional Dependencies
-- **tesseract-ocr-tam**: Tamil language pack (only if you need Tamil text recognition)
+| Distribution | Tesseract | A language (e.g. Tamil `tam`) |
+|---|---|---|
+| Ubuntu / Debian | `sudo apt install tesseract-ocr` | `sudo apt install tesseract-ocr-tam` |
+| Fedora | `sudo dnf install tesseract` | `sudo dnf install tesseract-langpack-tam` |
+| Arch | `sudo pacman -S tesseract` | `sudo pacman -S tesseract-data-tam` |
+| openSUSE | `sudo zypper install tesseract-ocr` | `sudo zypper install tesseract-ocr-traineddata-tam` |
+
+Language codes are Tesseract's (`eng`, `deu`, `tam`, `sin`, `chi_sim`, …); see the [full list](https://tesseract-ocr.github.io/tessdoc/Data-Files-in-different-versions.html).
 
 ## Installation
 
-### Method 1: Automatic Installation (Recommended)
-
-1. **Download the extension**:
-   ```bash
-   git clone https://github.com/imshaaz21/text-extractor-gnome.git
-   cd text-extractor-gnome
-   ```
-
-2. **Install dependencies automatically**:
-   ```bash
-   chmod +x scripts/install-dependencies.sh
-   scripts/install-dependencies.sh
-   ```
-   This script will detect your Linux distribution and install the required packages.
-
-3. **Install the extension**:
-   ```bash
-   # Copy to extensions directory
-   glib-compile-schemas extension/schemas
-   mkdir -p ~/.local/share/gnome-shell/extensions/text-extractor@imshaaz21.github.com
-   cp -r extension/* ~/.local/share/gnome-shell/extensions/text-extractor@imshaaz21.github.com/
-
-   # Restart GNOME Shell
-   # Press Alt+F2, type 'r', and press Enter
-   # Or log out and log back in
-   ```
-
-4. **Enable the extension**:
-    - Open GNOME Extensions app
-    - Find "Text Extractor" and toggle it on
-    - Or use command line: `gnome-extensions enable text-extractor@imshaaz21.github.com`
-
-### Method 2: Manual Installation
-
-#### Ubuntu/Debian:
 ```bash
-  sudo apt update
-  sudo apt install tesseract-ocr gnome-screenshot
-  sudo apt install tesseract-ocr-tam # Optional for Tamil support
+git clone https://github.com/imshaaz21/text-extractor-gnome.git
+cd text-extractor-gnome
+make install
+gnome-extensions enable text-extractor@imshaaz21.github.com
 ```
 
-#### Fedora:
-```bash
-  sudo dnf install tesseract gnome-screenshot
-  sudo dnf install tesseract-langpack-tam # Optional for Tamil support
-```
+Then log out and back in (Wayland), or press <kbd>Alt</kbd>+<kbd>F2</kbd>, `r`, <kbd>Enter</kbd> (X11).
 
-
-
-
-Then follow steps 3-4 from Method 1.
-
-## Uninstallation
-To remove the extension, run the following command:
-
-```bash
-  rm -rf ~/.local/share/gnome-shell/extensions/text-extractor@imshaaz21.github.com
-  gnome-extensions disable text-extractor@imshaaz21.github.com
-```
+To remove it: `make uninstall`.
 
 ## Usage
 
-1. **Quick Access**: Click the Text Extractor icon in the top panel
-2. **Extract Text**: Select "Extract Text from Screen" from the menu
-3. **Select Area**: Use your mouse to select the area containing text
-4. **Get Results**: The extracted text will be automatically copied to your clipboard
+1. Press <kbd>Super</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>, or click the Text Extractor icon in the top panel and choose **Extract Text from Screen**.
+2. Select the area containing text.
+3. The text is on your clipboard.
 
-### Menu Options
+## Preferences
 
-- **Extract Text from Screen**: Start the text extraction process
-- **Language**: Shows currently selected OCR language
-- **Check Dependencies**: Verify all required packages are installed
-- **Preferences**: Configure language and display settings
+- **Languages**: tick one or more installed languages.
+- **Shortcut**: click the row and press the new keys. Backspace disables it.
+- **Tessdata folder**: use your own `.traineddata` files, for example from [tessdata_best](https://github.com/tesseract-ocr/tessdata_best). Tesseract reads one folder only, so this replaces the system folder. Put every language you need in it.
+- **Show Panel Indicator**: hide or show the top-bar icon.
 
-## Configuration
+## Development
 
-### Language Settings
-- Open the extension preferences to change the OCR language
-- Currently supports:
-    - English (eng)
-    - Tamil (தமிழ்) (tam)
+```bash
+make nested   # try it in a throw-away nested GNOME Shell
+make pack     # build dist/*.shell-extension.zip
+```
 
-### Display Settings
-- Toggle the panel indicator visibility
+See [docs/README.md](docs/README.md) for debugging tips.
 
+```
+extension/
+├── extension.js   panel menu, screenshot → OCR → clipboard
+├── prefs.js       preferences window
+├── ocr.js         Tesseract helpers shared by both
+├── icons/         panel icon
+├── metadata.json
+└── schemas/       GSettings schema
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Release notes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-This project is licensed under the [GNU General Public License v3.0](./LICENSE).
-
-## Support
-
-If this saves you time, you can [buy me a coffee](https://buymeacoffee.com/imshaaz).
+[GNU General Public License v3.0](./LICENSE)
