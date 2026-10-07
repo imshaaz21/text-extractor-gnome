@@ -28,3 +28,6 @@ out/
 
 
 *.compiled
+
+# Build output
+dist/

@@ -1,568 +1,229 @@
 import Gio from 'gi://Gio';
 import St from 'gi://St';
 
-import {Extension, gettext as _, ngettext, pgettext} from 'resource:///org/gnome/shell/extensions/extension.js';
+import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
-import * as Screenshot from 'resource:///org/gnome/shell/ui/screenshot.js';
 
-const REQUIRED_DEPENDENCIES = [
-    {
-        command: 'tesseract',
-        package: 'tesseract-ocr',
-        description: 'OCR engine for text extraction'
-    }
-];
+import * as Ocr from './ocr.js';
 
+const SHELL_TOAST_ICON = 'screenshot-recorded-symbolic';
+const AREA_MODE_BUTTONS = ['_selectionButton', '_screenButton', '_windowButton'];
 
 export default class TextExtractorExtension extends Extension {
-    constructor(metadata) {
-        super(metadata);
-        this._indicator = null;
-        this._settings = null;
-        this._languageLabel = null;
-        this._isExtracting = false;
-    }
-
     enable() {
+        this._cancellable = new Gio.Cancellable();
         this._settings = this.getSettings();
+        this._isExtracting = false;
+        this._ocrRunning = false;
+        this._previousMode = null;
+        this._uiSignals = [];
+
         this._createPanelButton();
-        this._bindSettings();
-        this._checkDependenciesOnStart();
+
+        this._settings.bind('show-indicator', this._indicator, 'visible', Gio.SettingsBindFlags.DEFAULT);
+        this._languageChangedId = this._settings.connect('changed::language', () => this._updateLanguageLabel());
     }
 
     disable() {
-        if (this._indicator) {
-            this._indicator.destroy();
-            this._indicator = null;
-        }
-        this._settings = null;
+        this._cancellable.cancel();
+        this._cancellable = null;
+
+        this._disconnectScreenshotUI();
+        this._settings.disconnect(this._languageChangedId);
+
+        this._indicator.destroy();
+        this._indicator = null;
         this._languageLabel = null;
-        this._isExtracting = false;
+        this._settings = null;
     }
 
     _createPanelButton() {
-        // Create panel indicator
         this._indicator = new PanelMenu.Button(0.0, this.metadata.name, false);
-
-        // Add icon with professional styling
-        const icon = new St.Icon({
-            icon_name: 'document-edit-symbolic',
+        this._indicator.add_child(new St.Icon({
+            icon_name: 'insert-text-symbolic',
             style_class: 'system-status-icon',
-        });
-        this._indicator.add_child(icon);
+        }));
 
-        // Create menu items
-        this._createMenuItems();
-
-        // Add to panel
-        Main.panel.addToStatusArea(this.uuid, this._indicator);
-    }
-
-    _createMenuItems() {
         const menu = this._indicator.menu;
 
-        // Extract Text action
-        const extractItem = new PopupMenu.PopupMenuItem(_('Extract Text from Screen'));
-        const extractIcon = new St.Icon({
-            icon_name: 'edit-select-all-symbolic',
-            style_class: 'popup-menu-icon',
-        });
-        extractItem.insert_child_at_index(extractIcon, 0);
+        const extractItem = new PopupMenu.PopupImageMenuItem(_('Extract Text from Screen'), 'edit-select-all-symbolic');
         extractItem.connect('activate', () => this._extractText());
         menu.addMenuItem(extractItem);
 
-        // Separator
         menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        // Language display
         this._languageLabel = new PopupMenu.PopupMenuItem('', {reactive: false});
-        this._languageLabel.label.style_class = 'popup-menu-item-label';
         menu.addMenuItem(this._languageLabel);
         this._updateLanguageLabel();
 
-        // Separator
         menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        // Preferences
-        const prefsItem = new PopupMenu.PopupMenuItem(_('Preferences'));
-        const prefsIcon = new St.Icon({
-            icon_name: 'preferences-system-symbolic',
-            style_class: 'popup-menu-icon',
-        });
-        prefsItem.insert_child_at_index(prefsIcon, 0);
+        const prefsItem = new PopupMenu.PopupImageMenuItem(_('Preferences'), 'preferences-system-symbolic');
         prefsItem.connect('activate', () => this.openPreferences());
         menu.addMenuItem(prefsItem);
+
+        Main.panel.addToStatusArea(this.uuid, this._indicator);
     }
 
-    _bindSettings() {
-        // Bind visibility setting
-        this._settings.bind('show-indicator', this._indicator, 'visible',
-            Gio.SettingsBindFlags.DEFAULT);
+    _languages() {
+        return Ocr.parseLanguages(this._settings.get_string('language'));
+    }
 
-        // Listen for language changes
-        this._settings.connect('changed::language', () => {
-            this._updateLanguageLabel();
-        });
+    _tessdataDir() {
+        return this._settings.get_string('tessdata-dir');
     }
 
     _updateLanguageLabel() {
-        const langCode = this._settings.get_string('language');
-        const languages = this.metadata.languages || {eng: 'English'};
-        const langName = languages[langCode] || langCode;
-        this._languageLabel.label.text = `${_('Language')}: ${langName}`;
+        const names = this._languages().map(Ocr.languageName);
+        this._languageLabel.label.text = _('Language: %s').format(names.join(', '));
     }
 
-    _checkDependenciesOnStart() {
-        // Silently check dependencies on startup
-        const missingDeps = this._getMissingDependencies();
-        if (missingDeps.length > 0) {
-            const depNames = missingDeps.map(dep => dep.package).join(', ');
-            this._showNotification(
-                _('Text Extractor - Missing Dependencies'),
-                _(`Please install: ${depNames}`)
-            );
-        }
-    }
+    // Resolves to a message describing what is missing, or null when OCR can run.
+    async _findProblem() {
+        const languages = this._languages();
+        let missing;
 
-    _checkAndReportDependencies() {
-        const missingDeps = this._getMissingDependencies();
-
-        if (missingDeps.length === 0) {
-            this._showNotification(
-                _('Text Extractor'),
-                _('All dependencies are installed and ready!')
-            );
+        if (!Ocr.isInstalled()) {
+            missing = ['tesseract'];
         } else {
-            const installCommands = this._generateInstallCommands(missingDeps);
-            this._showDependencyDialog(missingDeps, installCommands);
-        }
-    }
-
-    _getMissingDependencies() {
-        const missing = [];
-
-        for (const dep of REQUIRED_DEPENDENCIES) {
-            if (!this._checkCommand(dep.command)) {
-                missing.push(dep);
+            try {
+                const installed = await Ocr.listLanguages(this._tessdataDir(), this._cancellable);
+                missing = languages.filter(l => !installed.includes(l));
+            } catch (e) {
+                if (Ocr.isCancelled(e))
+                    throw e;
+                console.error(`Text Extractor: ${e.message}`);
+                return _('Tesseract could not list its languages. Check the tessdata folder in Preferences.');
             }
         }
 
-        // Check for tesseract language packs
-        const langCode = this._settings.get_string('language') || 'eng';
-        const languages = this.metadata.languages || {eng: 'English'};
-        if (langCode !== 'eng' && !this._checkTesseractLanguage(langCode)) {
-            missing.push({
-                command: `tesseract-${langCode}`,
-                package: `tesseract-ocr-${langCode}`,
-                description: `Tesseract language pack for ${languages[langCode]}`
-            });
-        }
+        if (missing.length === 0)
+            return null;
 
-        return missing;
+        const command = Ocr.installCommand(languages);
+        return command
+            ? _('Missing: %s. Install with: %s').format(missing.join(', '), command)
+            : _('Missing: %s. Please install Tesseract and its language data.').format(missing.join(', '));
     }
 
-    _checkCommand(command) {
-        return this._execCheck(['which', command])
-            .then(() => true)
-            .catch(() => false);
-    }
-
-    _checkTesseractLanguage(langCode) {
-        return this._execCommunicate(['tesseract', '--list-langs']).then(result => {
-            return result.includes(langCode);
-        }).catch(e => {
-            this._logError("Failed to check Tesseract language", e);
-            return false;
-        })
-    }
-
-    _generateInstallCommands(missingDeps) {
-        const packages = missingDeps.map(dep => dep.package).join(' ');
-
-        return [
-            `# Ubuntu/Debian:`,
-            `sudo apt update && sudo apt install ${packages}`,
-            ``,
-            `# Fedora:`,
-            `sudo dnf install ${packages.replace('tesseract-ocr', 'tesseract')}`,
-            ``,
-            `# Arch Linux:`,
-            `sudo pacman -S ${packages.replace('tesseract-ocr', 'tesseract').replace('gnome-screenshot', 'gnome-screenshot')}`
-        ].join('\n');
-    }
-
-    _showDependencyDialog(missingDeps, installCommands) {
-        const depList = missingDeps.map(dep => `• ${dep.package} - ${dep.description}`).join('\n');
-
-        this._showNotification(
-            _('Text Extractor - Missing Dependencies'),
-            _(`Missing dependencies:\n${depList}\n\nInstall commands copied to clipboard.`)
-        );
-
-        // Copy install commands to clipboard
-        this._copyToClipboardDirect(installCommands);
-    }
-
-    _extractText() {
-        if (this._isExtracting) {
-            this._showNotification(_('Text Extractor'), _('Extraction already in progress...'));
+    async _extractText() {
+        if (this._isExtracting)
             return;
-        }
-
-        const missingDeps = this._getMissingDependencies();
-        if (missingDeps.length > 0) {
-            this._checkAndReportDependencies();
-            return;
-        }
-
         this._isExtracting = true;
-        const screenshotPath = `/tmp/text-extractor-screenshot-${Date.now()}.png`;
-        const ocrOutputPath = `/tmp/text-extracted-${Date.now()}`;
-        const langCode = this._settings.get_string('language') || 'eng';
 
-        // this._takeScreenshot(screenshotPath, ocrOutputPath, langCode);
-        this._openScreenshotUI(langCode);
-    }
-
-    _takeScreenshot(screenshotPath, ocrOutputPath, langCode) {
         try {
-            const proc = Gio.Subprocess.new(
-                ['gnome-screenshot', '-a', '-f', screenshotPath],
-                Gio.SubprocessFlags.NONE
-            );
+            const problem = await this._findProblem();
+            if (problem) {
+                this._isExtracting = false;
+                this._notify(problem);
+                return;
+            }
 
-            proc.wait_async(null, (proc, result) => {
-                try {
-                    const success = proc.wait_finish(result);
-                    if (success && proc.get_exit_status() === 0) {
-                        const file = Gio.File.new_for_path(screenshotPath);
-                        if (file.query_exists(null)) {
-                            this._processOCR(screenshotPath, ocrOutputPath, langCode);
-                        } else {
-                            this._showNotification(_('Text Extractor'), _('Screenshot was cancelled'));
-                            this._isExtracting = false;
-                        }
-                    } else {
-                        this._showNotification(_('Text Extractor'), _('Screenshot failed'));
-                        this._isExtracting = false;
-                    }
-                } catch (error) {
-                    this._logError('Screenshot failed', error);
-                    this._showNotification(_('Text Extractor'), _('Screenshot failed'));
+            const ui = Main.screenshotUI;
+            this._connectUI(Main.messageTray, 'source-added', (_tray, source) => this._dropShellToast(source));
+            this._connectUI(ui, 'screenshot-taken', (_ui, file) => this._onScreenshot(file));
+            this._connectUI(ui, 'closed', () => {
+                this._disconnectScreenshotUI();
+                if (!this._ocrRunning)
                     this._isExtracting = false;
-                }
             });
 
-        } catch (error) {
-            this._logError('Failed to start screenshot', error);
-            this._showNotification(_('Text Extractor'), _('Failed to start screenshot'));
-            this._isExtracting = false;
-        }
-    }
+            // Shell remembers the last capture mode, so note it and put it back afterwards.
+            this._previousMode = AREA_MODE_BUTTONS.map(name => ui[name]).find(button => button?.checked);
 
-    _processOCR(screenshotPath, ocrOutputPath, langCode) {
-        try {
-            const proc = Gio.Subprocess.new(
-                ['tesseract', screenshotPath, ocrOutputPath, '-l', langCode],
-                Gio.SubprocessFlags.STDERR_PIPE
-            );
-
-            proc.wait_async(null, (proc, result) => {
-                try {
-                    const success = proc.wait_finish(result);
-                    if (success && proc.get_exit_status() === 0) {
-                        this._readAndCopyText(ocrOutputPath, screenshotPath);
-                    } else {
-                        this._handleOCRError(proc);
-                        this._cleanupTempFiles(screenshotPath, `${ocrOutputPath}.txt`);
-                        this._isExtracting = false;
-                    }
-                } catch (error) {
-                    this._logError('OCR processing failed', error);
-                    this._showNotification(_('Text Extractor'), _('OCR processing failed'));
-                    this._cleanupTempFiles(screenshotPath, `${ocrOutputPath}.txt`);
-                    this._isExtracting = false;
-                }
-            });
-
-        } catch (error) {
-            this._logError('Failed to start OCR', error);
-            this._showNotification(_('Text Extractor'), _('Failed to start OCR process'));
-            this._cleanupTempFiles(screenshotPath);
-            this._isExtracting = false;
-        }
-    }
-
-    _handleOCRError(proc) {
-        try {
-            const stderr = proc.get_stderr_pipe();
-            if (stderr) {
-                const stream = new Gio.DataInputStream({
-                    base_stream: stderr
+            // Strip the UI down to a snipping tool: hide the mode and video buttons and capture
+            // when the drag ends. These are private widgets, so every access is optional; if a
+            // Shell release renames them the regular screenshot UI is shown instead.
+            ui._panel?.hide();
+            await ui.open();
+            if (ui._selectionButton)
+                ui._selectionButton.checked = true;
+            if (ui._areaSelector && ui._onCaptureButtonClicked) {
+                this._connectUI(ui._areaSelector, 'drag-ended', () => {
+                    const [, , width, height] = ui._areaSelector.getGeometry();
+                    if (width > 3 && height > 3)
+                        ui._onCaptureButtonClicked().catch(e => console.error(`Text Extractor: ${e.message}`));
                 });
-                const [line] = stream.read_line(null);
-                const errorMsg = line ? new TextDecoder().decode(line) : '';
+            }
+        } catch (e) {
+            this._disconnectScreenshotUI();
+            this._isExtracting = false;
+            if (Ocr.isCancelled(e))
+                return;
+            console.error(`Text Extractor: ${e.message}`);
+            this._notify(_('Failed to open the screenshot tool'));
+        }
+    }
 
-                if (errorMsg.includes('not installed') || errorMsg.includes('not found')) {
-                    this._showNotification(_('Text Extractor'), _('Language pack not installed. Check dependencies.'));
-                } else {
-                    this._showNotification(_('Text Extractor'), _('OCR failed. Please try again.'));
-                }
+    async _onScreenshot(file) {
+        this._ocrRunning = true;
+        try {
+            const text = await Ocr.recognize(file.get_path(), this._languages(), this._tessdataDir(), this._cancellable);
+
+            if (text) {
+                St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, text);
+                this._toast(_('Copied: %s').format(this._preview(text)));
             } else {
-                this._showNotification(_('Text Extractor'), _('OCR failed. Please try again.'));
+                this._toast(_('No text found'), 'dialog-information-symbolic');
             }
-        } catch (error) {
-            this._showNotification(_('Text Extractor'), _('OCR failed. Please try again.'));
-        }
-    }
-
-    _readAndCopyText(ocrOutputPath, screenshotPath) {
-        try {
-            const file = Gio.File.new_for_path(`${ocrOutputPath}.txt`);
-
-            if (!file.query_exists(null)) {
-                this._showNotification(_('Text Extractor'), _('OCR output file not found'));
-                this._cleanupTempFiles(screenshotPath, `${ocrOutputPath}.txt`);
-                this._isExtracting = false;
-                return;
+        } catch (e) {
+            if (!Ocr.isCancelled(e)) {
+                console.error(`Text Extractor: OCR failed: ${e.message}`);
+                this._notify(_('OCR failed. Please try again.'));
             }
-
-            const [success, contents] = file.load_contents(null);
-            if (!success) {
-                this._showNotification(_('Text Extractor'), _('Failed to read OCR output'));
-                this._cleanupTempFiles(screenshotPath, `${ocrOutputPath}.txt`);
-                this._isExtracting = false;
-                return;
+        } finally {
+            // The screenshot only existed to be read, so don't leave it in Pictures.
+            try {
+                file.delete(null);
+            } catch (e) {
+                // already removed
             }
-
-            const text = new TextDecoder().decode(contents).trim();
-
-            if (!text) {
-                this._showNotification(_('Text Extractor'), _('No text found in the selected area'));
-                this._cleanupTempFiles(screenshotPath, `${ocrOutputPath}.txt`);
-                this._isExtracting = false;
-                return;
-            }
-
-            this._copyToClipboard(text, screenshotPath, `${ocrOutputPath}.txt`);
-
-        } catch (error) {
-            this._logError('Failed to process extracted text', error);
-            this._showNotification(_('Text Extractor'), _('Failed to process extracted text'));
-            this._cleanupTempFiles(screenshotPath, `${ocrOutputPath}.txt`);
+            this._ocrRunning = false;
             this._isExtracting = false;
         }
     }
 
-    _copyToClipboard(text, screenshotPath, ocrPath) {
-        try {
-            // Use St.Clipboard instead of xclip
-            const clipboard = St.Clipboard.get_default();
-            clipboard.set_text(St.ClipboardType.CLIPBOARD, text);
+    // Shell announces each capture with "paste the image from the clipboard", which is wrong
+    // here because the clipboard receives text.
+    _dropShellToast(source) {
+        const icon = source.iconName ?? source.icon?.to_string?.();
+        if (icon !== SHELL_TOAST_ICON)
+            return;
 
-            const wordCount = text.split(/\s+/).length;
-            this._showNotification(
-                _('Text Extractor'),
-                _(`Extracted text and copied to clipboard!`)
-            );
-
-            // Clean up and reset state
-            this._cleanupTempFiles(screenshotPath, ocrPath);
-            this._isExtracting = false;
-        } catch (error) {
-            this._logError('Failed to copy to clipboard', error);
-            this._showNotification(_('Text Extractor'), _('Text extracted but failed to copy to clipboard'));
-            this._cleanupTempFiles(screenshotPath, ocrPath);
-            this._isExtracting = false;
-        }
-    }
-
-    _copyToClipboardDirect(text) {
-        try {
-            // Use St.Clipboard instead of xclip
-            const clipboard = St.Clipboard.get_default();
-            clipboard.set_text(St.ClipboardType.CLIPBOARD, text);
-        } catch (error) {
-            this._logError('Failed to copy to clipboard', error);
-        }
-    }
-
-    _cleanupTempFiles(...filePaths) {
-        for (const filePath of filePaths) {
-            if (filePath) {
-                try {
-                    const file = Gio.File.new_for_path(filePath);
-                    if (file.query_exists(null)) {
-                        file.delete(null);
-                    }
-                } catch (error) {
-                    // Silent cleanup failure
-                }
-            }
-        }
-    }
-
-    _showNotification(title, message) {
-        try {
-            Main.notify(title, message);
-        } catch (error) {
-            this._logError('Failed to show notification', error);
-        }
-    }
-
-    _logError(message, error) {
-        console.error(`[Text Extractor] ${message}:`, error);
-    }
-
-
-    /**
-     * Execute a command asynchronously and check the exit status.
-     *
-     * If given, @cancellable can be used to stop the process before it finishes.
-     *
-     * @param {string[]} argv - a list of string arguments
-     * @param {Gio.Cancellable} [cancellable] - optional cancellable object
-     * @returns {Promise<boolean>} - The process success
-     */
-    async _execCheck(argv, cancellable = null) {
-        let cancelId = 0;
-        const proc = new Gio.Subprocess({
-            argv,
-            flags: Gio.SubprocessFlags.NONE,
+        const id = source.connect('notification-added', (_source, notification) => {
+            source.disconnect(id);
+            notification.destroy();
         });
-        proc.init(cancellable);
+    }
 
-        if (cancellable instanceof Gio.Cancellable)
-            cancelId = cancellable.connect(() => proc.force_exit());
+    _connectUI(object, signal, callback) {
+        this._uiSignals.push([object, object.connect(signal, callback)]);
+    }
 
-        try {
-            const success = await proc.wait_check_async(null);
+    _disconnectScreenshotUI() {
+        for (const [object, id] of this._uiSignals)
+            object.disconnect(id);
+        this._uiSignals = [];
+        Main.screenshotUI._panel?.show();
 
-            if (!success) {
-                const status = proc.get_exit_status();
-
-                throw new Gio.IOErrorEnum({
-                    code: Gio.IOErrorEnum.FAILED,
-                    message: `Command '${argv}' failed with exit code ${status}`,
-                });
-            }
-        } finally {
-            if (cancelId > 0)
-                cancellable.disconnect(cancelId);
+        if (this._previousMode) {
+            this._previousMode.checked = true;
+            this._previousMode = null;
         }
     }
 
-
-    async _execCommunicate(argv, input = null, cancellable = null) {
-        let cancelId = 0;
-        let flags = Gio.SubprocessFlags.STDOUT_PIPE |
-            Gio.SubprocessFlags.STDERR_PIPE;
-
-        if (input !== null)
-            flags |= Gio.SubprocessFlags.STDIN_PIPE;
-
-        const proc = new Gio.Subprocess({argv, flags});
-        proc.init(cancellable);
-
-        if (cancellable instanceof Gio.Cancellable)
-            cancelId = cancellable.connect(() => proc.force_exit());
-
-        try {
-            const [stdout, stderr] = await proc.communicate_utf8_async(input, null);
-
-            const status = proc.get_exit_status();
-
-            if (status !== 0) {
-                throw new Gio.IOErrorEnum({
-                    code: Gio.IOErrorEnum.FAILED,
-                    message: stderr ? stderr.trim() : `Command '${argv}' failed with exit code ${status}`,
-                });
-            }
-
-            return stdout.trim();
-        } finally {
-            if (cancelId > 0)
-                cancellable.disconnect(cancelId);
-        }
+    _preview(text) {
+        const line = text.replace(/\s+/g, ' ');
+        return line.length > 48 ? `${line.slice(0, 47)}…` : line;
     }
 
-
-    _openScreenshotUI(langCode) {
-        try {
-            // Open the screenshot UI in area selection mode
-            Main.screenshotUI.open().then(() => {
-                // Connect to the screenshot-taken signal
-                const connection = Main.screenshotUI.connect('screenshot-taken', (obj, screenshot) => {
-                    Main.screenshotUI.disconnect(connection);
-
-                    if (screenshot) {
-                        this._handleScreenshot(screenshot, langCode);
-                    } else {
-                        this._showNotification(_('Text Extractor'), _('Screenshot was cancelled'));
-                        this._isExtracting = false;
-                    }
-                });
-
-                // Handle cancellation
-                const closedConnection = Main.screenshotUI.connect('closed', () => {
-                    Main.screenshotUI.disconnect(closedConnection);
-                    if (this._isExtracting) {
-                        this._isExtracting = false;
-                    }
-                });
-            }).catch(error => {
-                this._logError('Failed to open screenshot UI', error);
-                this._showNotification(_('Text Extractor'), _('Failed to open screenshot UI'));
-                this._isExtracting = false;
-            });
-        } catch (error) {
-            this._logError('Failed to start screenshot UI', error);
-            this._showNotification(_('Text Extractor'), _('Failed to start screenshot'));
-            this._isExtracting = false;
-        }
+    _toast(message, icon = 'edit-copy-symbolic') {
+        Main.osdWindowManager.show(-1, Gio.ThemedIcon.new(icon), message);
     }
 
-    _handleScreenshot(screenshot, langCode) {
-        try {
-            const stream = screenshot.get_stream();
-            const screenshotPath = `/tmp/text-extractor-screenshot-${Date.now()}.png`;
-            const ocrOutputPath = `/tmp/text-extracted-${Date.now()}`;
-
-            this._saveScreenshotToFile(stream, screenshotPath).then(() => {
-                this._processOCR(screenshotPath, ocrOutputPath, langCode);
-            }).catch(error => {
-                this._logError('Failed to save screenshot', error);
-                this._showNotification(_('Text Extractor'), _('Failed to save screenshot'));
-                this._isExtracting = false;
-            });
-        } catch (error) {
-            this._logError('Failed to handle screenshot', error);
-            this._showNotification(_('Text Extractor'), _('Failed to process screenshot'));
-            this._isExtracting = false;
-        }
-    }
-
-    async _saveScreenshotToFile(stream, filePath) {
-        try {
-            const file = Gio.File.new_for_path(filePath);
-            const outputStream = await file.replace_async(
-                null,
-                false,
-                Gio.FileCreateFlags.REPLACE_DESTINATION,
-                GLib.PRIORITY_DEFAULT,
-                null
-            );
-
-            await outputStream.splice_async(
-                stream,
-                Gio.OutputStreamSpliceFlags.CLOSE_SOURCE | Gio.OutputStreamSpliceFlags.CLOSE_TARGET,
-                GLib.PRIORITY_DEFAULT,
-                null
-            );
-        } catch (error) {
-            throw error;
-        }
+    _notify(message) {
+        Main.notify(_('Text Extractor'), message);
     }
 }

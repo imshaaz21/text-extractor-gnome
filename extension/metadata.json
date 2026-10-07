@@ -1,18 +1,18 @@
 {
   "name": "Text Extractor",
-  "description": "Extracts text from a selected screen area and copies it to the clipboard, similar to PowerToys Text Extractor.",
+  "description": "Copy text from anywhere on your screen. Select an area and this OCR extension (Tesseract) puts the text on your clipboard: screenshot to text, in any language Tesseract supports.",
   "uuid": "text-extractor@imshaaz21.github.com",
   "shell-version": [
+    "45",
     "46",
     "47",
-    "48"
+    "48",
+    "49",
+    "50",
+    "51"
   ],
   "url": "https://github.com/imshaaz21/text-extractor-gnome",
   "version": 1,
-  "version-name": " 1.0.0",
-  "settings-schema": "org.gnome.shell.extensions.text-extractor",
-  "languages": {
-    "eng": "English",
-    "tam": "தமிழ்"
-  }
+  "version-name": "1.1.0",
+  "settings-schema": "org.gnome.shell.extensions.text-extractor"
 }
