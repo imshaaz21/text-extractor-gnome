@@ -24,7 +24,7 @@ Code layout:
 
 | File | Purpose |
 |---|---|
-| `extension/extension.js` | Panel menu, shortcut, screenshot to OCR to clipboard |
+| `extension/extension.js` | Panel menu, screenshot to OCR to clipboard |
 | `extension/prefs.js` | Preferences window |
 | `extension/ocr.js` | Tesseract helpers shared by both |
 | `extension/schemas/` | GSettings schema |

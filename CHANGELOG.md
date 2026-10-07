@@ -8,7 +8,6 @@ The format follows [Keep a Changelog](https://keep-a-changelog.com/en/1.1.0/).
 ### Added
 - Any language installed for Tesseract can be used, including several at once (`eng+tam`).
 - Custom tessdata folder for user-supplied `.traineddata` files.
-- Keyboard shortcut to start extraction (default `Super+Shift+T`, configurable).
 - Preferences show the install command for the user's distribution when Tesseract or a language is missing.
 - Support for GNOME Shell 45 to 51.
 

@@ -1,6 +1,4 @@
 import Gio from 'gi://Gio';
-import Meta from 'gi://Meta';
-import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
@@ -10,7 +8,6 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import * as Ocr from './ocr.js';
 
-const SHORTCUT_KEY = 'extract-shortcut';
 const SHELL_TOAST_ICON = 'screenshot-recorded-symbolic';
 const AREA_MODE_BUTTONS = ['_selectionButton', '_screenButton', '_windowButton'];
 
@@ -27,15 +24,12 @@ export default class TextExtractorExtension extends Extension {
 
         this._settings.bind('show-indicator', this._indicator, 'visible', Gio.SettingsBindFlags.DEFAULT);
         this._languageChangedId = this._settings.connect('changed::language', () => this._updateLanguageLabel());
-        Main.wm.addKeybinding(SHORTCUT_KEY, this._settings, Meta.KeyBindingFlags.NONE,
-            Shell.ActionMode.NORMAL, () => this._extractText());
     }
 
     disable() {
         this._cancellable.cancel();
         this._cancellable = null;
 
-        Main.wm.removeKeybinding(SHORTCUT_KEY);
         this._disconnectScreenshotUI();
         this._settings.disconnect(this._languageChangedId);
 

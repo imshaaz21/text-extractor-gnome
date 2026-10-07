@@ -38,10 +38,6 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
         appearance.add(indicatorRow);
         page.add(appearance);
 
-        const shortcut = new Adw.PreferencesGroup({title: _('Shortcut')});
-        shortcut.add(this._shortcutRow(window, settings));
-        page.add(shortcut);
-
         const ocr = new Adw.PreferencesGroup({
             title: _('Text Recognition'),
             description: _('Any language installed for Tesseract can be used. Pick several to read mixed-language text.'),
@@ -200,59 +196,6 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
         });
 
         refresh();
-    }
-
-    /** Row showing the current shortcut; activating it opens a small key-capture window. */
-    _shortcutRow(window, settings) {
-        const KEY = 'extract-shortcut';
-        const shown = new Gtk.ShortcutLabel({valign: Gtk.Align.CENTER, disabled_text: _('Disabled')});
-        const sync = () => {
-            shown.accelerator = settings.get_strv(KEY)[0] ?? '';
-        };
-        sync();
-        const changedId = settings.connect(`changed::${KEY}`, sync);
-        window.connect('close-request', () => settings.disconnect(changedId));
-
-        const row = new Adw.ActionRow({
-            title: _('Extract Text'),
-            subtitle: _('Click to change. Works from anywhere in the desktop.'),
-            activatable: true,
-        });
-        row.add_suffix(shown);
-
-        row.connect('activated', () => {
-            const dialog = new Gtk.Window({
-                title: _('Set Shortcut'),
-                modal: true,
-                transient_for: window,
-                resizable: false,
-                default_width: 360,
-                default_height: 140,
-                child: new Gtk.Label({
-                    label: _('Press the new shortcut\nEsc cancels, Backspace disables'),
-                    justify: Gtk.Justification.CENTER,
-                    margin_top: 24, margin_bottom: 24, margin_start: 24, margin_end: 24,
-                }),
-            });
-
-            const keys = new Gtk.EventControllerKey();
-            keys.connect('key-pressed', (_c, keyval, _keycode, state) => {
-                const mods = state & Gtk.accelerator_get_default_mod_mask();
-                if (mods === 0 && keyval === Gdk.KEY_Escape) {
-                    dialog.close();
-                } else if (mods === 0 && keyval === Gdk.KEY_BackSpace) {
-                    settings.set_strv(KEY, []);
-                    dialog.close();
-                } else if (Gtk.accelerator_valid(keyval, mods)) { // ignores bare modifier presses
-                    settings.set_strv(KEY, [Gtk.accelerator_name(Gdk.keyval_to_lower(keyval), mods)]);
-                    dialog.close();
-                }
-                return Gdk.EVENT_STOP;
-            });
-            dialog.add_controller(keys);
-            dialog.present();
-        });
-        return row;
     }
 
     _linkRow(title, url, icon) {
