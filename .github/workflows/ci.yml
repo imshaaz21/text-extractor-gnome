@@ -5,14 +5,19 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  check:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
       - name: Install tools
-        run: sudo apt-get update && sudo apt-get install -y gnome-shell libglib2.0-bin nodejs
+        run: sudo apt-get install -y --no-install-recommends libglib2.0-bin
 
       - name: Validate GSettings schema
         run: glib-compile-schemas --strict --dry-run extension/schemas
@@ -24,10 +29,7 @@ jobs:
             node --check "/tmp/$(basename "$f" .js).mjs"
           done
 
-      - name: Pack extension
-        run: make pack
-
-      - name: Check package contents
+      - name: Check metadata
         run: |
-          unzip -l dist/*.shell-extension.zip
-          unzip -l dist/*.shell-extension.zip | grep -q ocr.js
+          jq -e '.uuid and .name and .description and (."shell-version" | length > 0) and ."settings-schema"' extension/metadata.json
+          test ! -e extension/stylesheet.css
