@@ -1,7 +1,7 @@
 # Text Extractor
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-![GNOME Shell 45-51](https://img.shields.io/badge/GNOME_Shell-45%E2%80%9351-4a86cf)
+![GNOME Shell 45-50](https://img.shields.io/badge/GNOME_Shell-45%E2%80%9350-4a86cf)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy_me_a_coffee-FFDD00?style=flat&logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/imshaaz)
 
 A GNOME Shell extension for OCR on your screen: select an area, and the text in it (screenshot to text) is copied to the clipboard. It is the GNOME equivalent of PowerToys Text Extractor on Windows, and works with any language Tesseract supports.
@@ -21,7 +21,7 @@ A GNOME Shell extension for OCR on your screen: select an area, and the text in 
 
 ## Requirements
 
-- GNOME Shell 45 to 51
+- GNOME Shell 45 to 50
 - [Tesseract](https://github.com/tesseract-ocr/tesseract) and the language data you need
 
 The extension does not install anything itself. When Tesseract or a language is missing, it tells you the exact command for your distribution, in the notification and in **Preferences → Text Recognition** (with a copy button).

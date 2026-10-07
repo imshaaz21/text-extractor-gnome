@@ -29,6 +29,13 @@ jobs:
             node --check "/tmp/$(basename "$f" .js).mjs"
           done
 
+      - name: Run Shexli (extensions.gnome.org review checks)
+        run: |
+          pip install -q shexli
+          (cd extension && zip -qr ../extension.zip . -x 'schemas/gschemas.compiled')
+          shexli extension.zip
+          shexli --format json extension.zip | jq -e '.summary.severity_counts | (.error // 0) == 0 and (.warning // 0) == 0'
+
       - name: Check metadata
         run: |
           jq -e '.uuid and .name and .description and (."shell-version" | length > 0) and ."settings-schema"' extension/metadata.json
