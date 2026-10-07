@@ -4,19 +4,18 @@
 ![GNOME Shell 45-51](https://img.shields.io/badge/GNOME_Shell-45%E2%80%9351-4a86cf)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy_me_a_coffee-FFDD00?style=flat&logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/imshaaz)
 
-A GNOME Shell extension that reads text from any part of your screen and puts it on the clipboard, like PowerToys Text Extractor on Windows.
+A GNOME Shell extension for OCR on your screen: select an area, and the text in it (screenshot to text) is copied to the clipboard. It is the GNOME equivalent of PowerToys Text Extractor on Windows, and works with any language Tesseract supports.
 
 | 1. Start | 2. Select | 3. Paste |
 |:---:|:---:|:---:|
 | ![Panel menu](docs/menu.png) | ![Selecting an area](docs/select.png) | ![Copied toast](docs/result.png) |
-| Press <kbd>Super</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> or use the panel menu | Drag over the text, the capture happens when you let go | The text is on your clipboard |
+| Click the panel icon and choose Extract Text from Screen | Drag over the text, the capture happens when you let go | The text is on your clipboard |
 
 ## Features
 
 - Uses GNOME's own screenshot overlay, reduced to area selection: the screen freezes, you drag, you are done
 - Works with any language Tesseract has installed, and with several at once (`eng+tam`)
 - Bring your own models: point the extension at a folder of `.traineddata` files
-- Configurable keyboard shortcut
 - Quiet: a short on-screen message on success, a notification only when something needs fixing
 - Nothing is left behind: the temporary screenshot is deleted after reading
 
@@ -54,7 +53,7 @@ To remove it: `make uninstall`.
 
 ## Usage
 
-1. Press <kbd>Super</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>, or open the panel menu and choose **Extract Text from Screen**.
+1. Click the Text Extractor icon in the top panel and choose **Extract Text from Screen**.
 2. Drag over the text.
 3. Paste it anywhere.
 
@@ -66,12 +65,9 @@ Press <kbd>Esc</kbd> to cancel.
 |---|---|
 | Languages | Tick one or more installed languages. Mixed-language text works when several are ticked. |
 | Tessdata folder | Use your own `.traineddata` files, for example from [tessdata_best](https://github.com/tesseract-ocr/tessdata_best). Tesseract reads one folder only, so this **replaces** the system folder: put every language you need in it. |
-| Shortcut | Click the row and press the new keys. <kbd>Backspace</kbd> disables it. |
 | Show Panel Indicator | Hide or show the panel icon. |
 
 ## Troubleshooting
-
-**Nothing happens when I press the shortcut.** Another shortcut may use the same keys. Change it in Preferences.
 
 **"Missing: ..." message.** Run the command it shows, then press the refresh button in Preferences.
 
@@ -88,7 +84,7 @@ make pack     # build dist/*.shell-extension.zip
 
 ```
 extension/
-├── extension.js   panel menu, shortcut, screenshot to text to clipboard
+├── extension.js   panel menu, screenshot to text to clipboard
 ├── prefs.js       preferences window
 ├── ocr.js         Tesseract helpers shared by both
 ├── metadata.json
