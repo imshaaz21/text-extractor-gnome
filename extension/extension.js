@@ -33,9 +33,10 @@ export default class TextExtractorExtension extends Extension {
         this._disconnectScreenshotUI();
         this._settings.disconnect(this._languageChangedId);
 
+        this._languageLabel.destroy();
+        this._languageLabel = null;
         this._indicator.destroy();
         this._indicator = null;
-        this._languageLabel = null;
         this._settings = null;
     }
 

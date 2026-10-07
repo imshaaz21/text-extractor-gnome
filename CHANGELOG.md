@@ -9,7 +9,7 @@ The format follows [Keep a Changelog](https://keep-a-changelog.com/en/1.1.0/).
 - Any language installed for Tesseract can be used, including several at once (`eng+tam`).
 - Custom tessdata folder for user-supplied `.traineddata` files.
 - Preferences show the install command for the user's distribution when Tesseract or a language is missing.
-- Support for GNOME Shell 45 to 51.
+- Support for GNOME Shell 45 to 50.
 
 ### Changed
 - Screenshots use GNOME's built-in screenshot UI, reduced to area selection, instead of `gnome-screenshot`.
