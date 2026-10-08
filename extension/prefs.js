@@ -11,11 +11,12 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         // State lives in this closure rather than on `this`, so it is collected when the window closes.
         const settings = this.getSettings();
+        const name = this.metadata.name;
         let scan = null;
         let installCmd = null;
         let languageRows = [];
 
-        window.set_title(_('Text Extractor Preferences'));
+        window.set_title(_('%s Preferences').format(name));
         window.set_default_size(600, 640);
         window.connect('close-request', () => {
             scan?.cancel();
@@ -32,7 +33,7 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
         const appearance = new Adw.PreferencesGroup({title: _('Appearance')});
         const indicatorRow = new Adw.SwitchRow({
             title: _('Show Panel Indicator'),
-            subtitle: _('Display the Text Extractor icon in the top panel'),
+            subtitle: _('Display the icon in the top panel'),
         });
         settings.bind('show-indicator', indicatorRow, 'active', Gio.SettingsBindFlags.DEFAULT);
         appearance.add(indicatorRow);
@@ -185,7 +186,7 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
             } catch (e) {
                 if (cancellable.is_cancelled())
                     return;
-                console.error(`[Text Extractor] ${e.message}`);
+                console.error(`[${name}] ${e.message}`);
                 clearLanguages();
                 setStatus('error', _('Tesseract could not list its languages. Check the tessdata folder below.'));
             }

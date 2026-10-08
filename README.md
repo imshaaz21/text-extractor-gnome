@@ -1,4 +1,4 @@
-# Text Extractor for GNOME: OCR Screenshot to Text
+# OCR Text Extractor for GNOME: Screenshot to Text
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 ![GNOME Shell 45-50](https://img.shields.io/badge/GNOME_Shell-45%E2%80%9350-4a86cf)
@@ -78,7 +78,7 @@ The extension lists whatever Tesseract has installed, so no extension update is 
 
 ## Usage
 
-1. Click the Text Extractor icon in the top panel and choose **Extract Text from Screen**.
+1. Click the panel icon and choose **Extract Text from Screen**.
 2. Drag over the text.
 3. Paste it anywhere.
 
