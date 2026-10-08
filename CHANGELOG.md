@@ -3,6 +3,11 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keep-a-changelog.com/en/1.1.0/).
 
+## [1.1.1]
+
+### Changed
+- The install command shown for a missing Tesseract or language pack is no longer exported as a string. It is passed to a display callback only, so it cannot be used in a spawn call.
+
 ## [1.1.0]
 
 ### Added

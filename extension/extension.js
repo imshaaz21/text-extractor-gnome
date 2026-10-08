@@ -103,10 +103,11 @@ export default class TextExtractorExtension extends Extension {
         if (missing.length === 0)
             return null;
 
-        const command = Ocr.installCommand(languages);
-        return command
-            ? _('Missing: %s. Install with: %s').format(missing.join(', '), command)
-            : _('Missing: %s. Please install Tesseract and its language data.').format(missing.join(', '));
+        let message = _('Missing: %s. Please install Tesseract and its language data.').format(missing.join(', '));
+        Ocr.presentInstallCommand(languages, command => {
+            message = _('Missing: %s. Install with: %s').format(missing.join(', '), command);
+        });
+        return message;
     }
 
     async _extractText() {

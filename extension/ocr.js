@@ -46,8 +46,7 @@ export function languageName(code) {
     return code;
 }
 
-// Command that installs Tesseract and the given language packs, or null for an unknown distribution.
-export function installCommand(languages = []) {
+function installCommand(languages) {
     const ids = [GLib.get_os_info('ID'), ...(GLib.get_os_info('ID_LIKE') ?? '').split(' ')];
     const isLike = (...names) => names.some(name => ids.includes(name));
     const packs = (prefix, separator = '_') => languages
@@ -63,4 +62,16 @@ export function installCommand(languages = []) {
     if (isLike('suse', 'opensuse'))
         return ['sudo zypper install tesseract-ocr', ...packs('tesseract-ocr-traineddata-')].join(' ');
     return null;
+}
+
+// The install command is for display only (notification, label, clipboard). It is handed to
+// `present` instead of being returned so it can never end up in a spawn call. Returns false
+// when the distribution is unknown and there is nothing to present.
+export function presentInstallCommand(languages, present) {
+    const command = installCommand(languages);
+    if (command === null)
+        return false;
+
+    present(command);
+    return true;
 }
