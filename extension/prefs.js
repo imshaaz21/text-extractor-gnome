@@ -98,6 +98,15 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
             copyButton.visible = command !== null;
         };
 
+        // Returns [status text, command to copy]; the command is only ever displayed or copied.
+        const withInstallCommand = (languages, format, fallback) => {
+            let result = [fallback, null];
+            Ocr.notifyInstallCommand(languages, command => {
+                result = [format(command), command];
+            });
+            return result;
+        };
+
         const clearLanguages = () => {
             for (const row of languageRows)
                 languagesRow.remove(row);
@@ -149,10 +158,9 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
             try {
                 if (!Ocr.isInstalled()) {
                     clearLanguages();
-                    const cmd = Ocr.installCommand(selected());
-                    setStatus('error', cmd
-                        ? _('Tesseract is not installed. Run: %s').format(cmd)
-                        : _('Tesseract is not installed. Install it with your package manager.'), cmd);
+                    setStatus('error', ...withInstallCommand(selected(),
+                        command => _('Tesseract is not installed. Run: %s').format(command),
+                        _('Tesseract is not installed. Install it with your package manager.')));
                     return;
                 }
 
@@ -164,11 +172,9 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
                 if (missing.length === 0) {
                     setStatus('ok', _('Ready. %d languages available.').format(installed.length));
                 } else {
-                    const cmd = Ocr.installCommand(missing);
-                    setStatus('warn', cmd
-                        ? _('Missing: %s. Run: %s').format(missing.join(', '), cmd)
-                        : _('Missing: %s. Install the matching Tesseract language data.').format(missing.join(', ')),
-                    cmd);
+                    setStatus('warn', ...withInstallCommand(missing,
+                        command => _('Missing: %s. Run: %s').format(missing.join(', '), command),
+                        _('Missing: %s. Install the matching Tesseract language data.').format(missing.join(', '))));
                 }
                 // Rebuild the rows only when the set of languages changed (not on every tick).
                 const wanted = [...new Set([...installed, ...selected()])];

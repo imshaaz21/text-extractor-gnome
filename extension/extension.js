@@ -81,8 +81,8 @@ export default class TextExtractorExtension extends Extension {
         this._languageLabel.label.text = _('Language: %s').format(names.join(', '));
     }
 
-    // Resolves to a message describing what is missing, or null when OCR can run.
-    async _findProblem() {
+    // Tells the user what is missing. Resolves to true when something was reported.
+    async _reportProblem() {
         const languages = this._languages();
         let missing;
 
@@ -96,17 +96,20 @@ export default class TextExtractorExtension extends Extension {
                 if (Ocr.isCancelled(e))
                     throw e;
                 console.error(`Text Extractor: ${e.message}`);
-                return _('Tesseract could not list its languages. Check the tessdata folder in Preferences.');
+                this._notify(_('Tesseract could not list its languages. Check the tessdata folder in Preferences.'));
+                return true;
             }
         }
 
         if (missing.length === 0)
-            return null;
+            return false;
 
-        const command = Ocr.installCommand(languages);
-        return command
-            ? _('Missing: %s. Install with: %s').format(missing.join(', '), command)
-            : _('Missing: %s. Please install Tesseract and its language data.').format(missing.join(', '));
+        const names = missing.join(', ');
+        const shown = Ocr.notifyInstallCommand(languages,
+            command => this._notify(_('Missing: %s. Install with: %s').format(names, command)));
+        if (!shown)
+            this._notify(_('Missing: %s. Please install Tesseract and its language data.').format(names));
+        return true;
     }
 
     async _extractText() {
@@ -115,10 +118,8 @@ export default class TextExtractorExtension extends Extension {
         this._isExtracting = true;
 
         try {
-            const problem = await this._findProblem();
-            if (problem) {
+            if (await this._reportProblem()) {
                 this._isExtracting = false;
-                this._notify(problem);
                 return;
             }
 

@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keep-a-changelog.com/en/1.1.0/).
 
+## [1.1.1]
+
+### Changed
+- The extension description says that Tesseract OCR must be installed.
+- The install command for a missing Tesseract or language pack is no longer exported as a string. `notifyInstallCommand()` passes it to a notification (or the preferences status row) only, so it cannot be used in a spawn call.
+
 ## [1.1.0]
 
 ### Added
