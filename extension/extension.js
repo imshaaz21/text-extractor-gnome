@@ -95,7 +95,7 @@ export default class TextExtractorExtension extends Extension {
             } catch (e) {
                 if (Ocr.isCancelled(e))
                     throw e;
-                console.error(`Text Extractor: ${e.message}`);
+                console.error(`${this.metadata.name}: ${e.message}`);
                 this._notify(_('Tesseract could not list its languages. Check the tessdata folder in Preferences.'));
                 return true;
             }
@@ -146,7 +146,7 @@ export default class TextExtractorExtension extends Extension {
                 this._connectUI(ui._areaSelector, 'drag-ended', () => {
                     const [, , width, height] = ui._areaSelector.getGeometry();
                     if (width > 3 && height > 3)
-                        ui._onCaptureButtonClicked().catch(e => console.error(`Text Extractor: ${e.message}`));
+                        ui._onCaptureButtonClicked().catch(e => console.error(`${this.metadata.name}: ${e.message}`));
                 });
             }
         } catch (e) {
@@ -154,7 +154,7 @@ export default class TextExtractorExtension extends Extension {
             this._isExtracting = false;
             if (Ocr.isCancelled(e))
                 return;
-            console.error(`Text Extractor: ${e.message}`);
+            console.error(`${this.metadata.name}: ${e.message}`);
             this._notify(_('Failed to open the screenshot tool'));
         }
     }
@@ -172,7 +172,7 @@ export default class TextExtractorExtension extends Extension {
             }
         } catch (e) {
             if (!Ocr.isCancelled(e)) {
-                console.error(`Text Extractor: OCR failed: ${e.message}`);
+                console.error(`${this.metadata.name}: OCR failed: ${e.message}`);
                 this._notify(_('OCR failed. Please try again.'));
             }
         } finally {
@@ -226,6 +226,6 @@ export default class TextExtractorExtension extends Extension {
     }
 
     _notify(message) {
-        Main.notify(_('Text Extractor'), message);
+        Main.notify(this.metadata.name, message);
     }
 }

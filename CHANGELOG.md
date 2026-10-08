@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keep-a-changelog.com/en/1.1.0/).
 
+## [1.1.2]
+
+### Changed
+- Renamed to "OCR Text Extractor" so it is easy to tell apart from other extensions called "Text Extractor".
+- The description now mentions PowerToys Text Extractor, which this extension is the GNOME equivalent of.
+
 ## [1.1.1]
 
 ### Changed
