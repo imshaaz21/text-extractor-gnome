@@ -1,6 +1,6 @@
 {
   "name": "Text Extractor",
-  "description": "Copy text from anywhere on your screen. Select an area and this OCR extension (Tesseract) writes the text to your clipboard: screenshot to text, in any language Tesseract supports. Clipboard access: it only writes the extracted text.",
+  "description": "Copy text from anywhere on your screen. Select an area and this OCR extension writes the text to your clipboard: screenshot to text, in any language Tesseract supports. Requires Tesseract OCR to be installed. Clipboard access: it only writes the extracted text.",
   "uuid": "text-extractor@imshaaz21.github.com",
   "shell-version": [
     "45",
