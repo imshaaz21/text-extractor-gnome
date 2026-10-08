@@ -51,19 +51,30 @@ The extension lists whatever Tesseract has installed, so no extension update is 
 
 ## Installation
 
-```bash
-git clone https://github.com/imshaaz21/text-extractor-gnome.git
-cd text-extractor-gnome
-make install
-```
+1. **Install Tesseract** first, as described in [Requirements](#requirements). The extension does not install it for you.
+2. **Install the extension**, either way:
 
-Log out and back in, then enable it:
+   - From [extensions.gnome.org](https://extensions.gnome.org/extension/8240/text-extractor/): open the page and switch it on.
+   - From source:
 
-```bash
-gnome-extensions enable text-extractor@imshaaz21.github.com
-```
+     ```bash
+     git clone https://github.com/imshaaz21/text-extractor-gnome.git
+     cd text-extractor-gnome
+     make install
+     ```
 
-To remove it: `make uninstall`.
+     Log out and back in, then enable it: `gnome-extensions enable text-extractor@imshaaz21.github.com`
+
+## Uninstallation
+
+1. **Remove the extension.** Use the Extensions app (**Remove**), or run `gnome-extensions uninstall text-extractor@imshaaz21.github.com`. If you installed from source you can also run `make uninstall`.
+2. **Optional: reset its settings:**
+
+   ```bash
+   dconf reset -f /org/gnome/shell/extensions/text-extractor/
+   ```
+
+3. **Optional: remove Tesseract** if nothing else uses it. The extension never installed it, so it stays until you remove it with your package manager, for example `sudo apt remove tesseract-ocr` on Ubuntu or `sudo dnf remove tesseract` on Fedora. Language packs you added are separate packages.
 
 ## Usage
 
