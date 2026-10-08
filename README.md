@@ -1,4 +1,4 @@
-# Text Extractor
+# Text Extractor for GNOME: OCR Screenshot to Text
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 ![GNOME Shell 45-50](https://img.shields.io/badge/GNOME_Shell-45%E2%80%9350-4a86cf)
@@ -91,6 +91,23 @@ Press <kbd>Esc</kbd> to cancel.
 | Languages | Tick one or more installed languages. Mixed-language text works when several are ticked. |
 | Tessdata folder | Use your own `.traineddata` files, for example from [tessdata_best](https://github.com/tesseract-ocr/tessdata_best). Tesseract reads one folder only, so this **replaces** the system folder: put every language you need in it. |
 | Show Panel Indicator | Hide or show the panel icon. |
+
+## FAQ
+
+**Is there a PowerToys Text Extractor for Linux?**
+This extension does the same job on GNOME: you select an area of the screen and the text in it is copied to the clipboard.
+
+**How do I copy text from an image or from the screen on Ubuntu, Fedora or Arch?**
+Install Tesseract, install this extension, click its panel icon and drag over the text. The text is on your clipboard.
+
+**Does it work on Wayland?**
+Yes. It uses GNOME's own screenshot overlay, so it does not depend on X11 tools.
+
+**Which languages does it read?**
+Any language Tesseract has data for, including several at once. See [Adding a language](#adding-a-language).
+
+**Does it send my screen anywhere?**
+No. Recognition runs locally with Tesseract, and the temporary screenshot is deleted afterwards.
 
 ## Troubleshooting
 
