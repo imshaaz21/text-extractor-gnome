@@ -64,14 +64,14 @@ function installCommand(languages) {
     return null;
 }
 
-// The install command is for display only (notification, label, clipboard). It is handed to
-// `present` instead of being returned so it can never end up in a spawn call. Returns false
-// when the distribution is unknown and there is nothing to present.
-export function presentInstallCommand(languages, present) {
+// The install command is for display only and is never used in a spawn call. It is passed to
+// `notify` (a notification in the shell, a status row in preferences) instead of being returned.
+// Returns false when the distribution is unknown and there is nothing to show.
+export function notifyInstallCommand(languages, notify) {
     const command = installCommand(languages);
     if (command === null)
         return false;
 
-    present(command);
+    notify(command);
     return true;
 }

@@ -101,7 +101,7 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
         // Returns [status text, command to copy]; the command is only ever displayed or copied.
         const withInstallCommand = (languages, format, fallback) => {
             let result = [fallback, null];
-            Ocr.presentInstallCommand(languages, command => {
+            Ocr.notifyInstallCommand(languages, command => {
                 result = [format(command), command];
             });
             return result;
