@@ -3,6 +3,17 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keep-a-changelog.com/en/1.1.0/).
 
+## [1.4.0]
+
+### Fixed
+- Shell's own "Screenshot captured, paste the image from the clipboard" toast was not always hidden after a capture, which is wrong because the clipboard receives text. The icon check that finds it is now tolerant of the icon's string form.
+
+### Added
+- Keyboard shortcut to start a capture, <kbd>Super</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> by default, changeable or disableable in Preferences. It works with the panel icon hidden. (#12)
+
+### Changed
+- New panel icon (a capture frame around a "T"). It ships with the extension, so it looks the same on every distro and icon theme.
+
 ## [1.1.3]
 
 ### Fixed

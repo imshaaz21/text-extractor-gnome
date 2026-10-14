@@ -16,5 +16,10 @@
             <summary>Show Indicator</summary>
             <description>Whether to show the panel indicator.</description>
         </key>
+        <key name="extract-shortcut" type="as">
+            <default><![CDATA[['<Super><Shift>t']]]></default>
+            <summary>Extract text shortcut</summary>
+            <description>Keyboard shortcut that starts the capture. Empty disables it.</description>
+        </key>
     </schema>
 </schemalist>

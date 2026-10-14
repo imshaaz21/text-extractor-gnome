@@ -9,7 +9,7 @@ A GNOME Shell extension for OCR on your screen: select an area, and the text in 
 | 1. Start | 2. Select | 3. Paste |
 |:---:|:---:|:---:|
 | ![Panel menu](docs/menu.png) | ![Selecting an area](docs/select.png) | ![Copied toast](docs/result.png) |
-| Click the panel icon and choose Extract Text from Screen | Drag over the text, the capture happens when you let go | The text is on your clipboard |
+| Press Super+Shift+T, or click the panel icon and choose Extract Text from Screen | Drag over the text, the capture happens when you let go | The text is on your clipboard |
 
 ## Features
 
@@ -78,7 +78,7 @@ The extension lists whatever Tesseract has installed, so no extension update is 
 
 ## Usage
 
-1. Click the panel icon and choose **Extract Text from Screen**.
+1. Press <kbd>Super</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>, or click the panel icon and choose **Extract Text from Screen**.
 2. Drag over the text.
 3. Paste it anywhere.
 
@@ -90,6 +90,7 @@ Press <kbd>Esc</kbd> to cancel.
 |---|---|
 | Languages | Tick one or more installed languages. Mixed-language text works when several are ticked. |
 | Tessdata folder | Use your own `.traineddata` files, for example from [tessdata_best](https://github.com/tesseract-ocr/tessdata_best). Tesseract reads one folder only, so this **replaces** the system folder: put every language you need in it. |
+| Extract Text Shortcut | Keyboard shortcut that starts a capture (default <kbd>Super</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>). Click the row and press new keys to change it, or use the clear button to disable it. Works with the panel icon hidden. |
 | Show Panel Indicator | Hide or show the panel icon. |
 
 ## FAQ
@@ -98,7 +99,7 @@ Press <kbd>Esc</kbd> to cancel.
 This extension does the same job on GNOME: you select an area of the screen and the text in it is copied to the clipboard.
 
 **How do I copy text from an image or from the screen on Ubuntu, Fedora or Arch?**
-Install Tesseract, install this extension, click its panel icon and drag over the text. The text is on your clipboard.
+Install Tesseract, install this extension, press Super+Shift+T (or click its panel icon) and drag over the text. The text is on your clipboard.
 
 **Does it work on Wayland?**
 Yes. It uses GNOME's own screenshot overlay, so it does not depend on X11 tools.
