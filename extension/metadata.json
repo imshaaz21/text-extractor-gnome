@@ -12,6 +12,6 @@
   ],
   "url": "https://github.com/imshaaz21/text-extractor-gnome",
   "version": 1,
-  "version-name": "1.1.2",
+  "version-name": "1.1.3",
   "settings-schema": "org.gnome.shell.extensions.text-extractor"
 }

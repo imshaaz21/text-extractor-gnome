@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keep-a-changelog.com/en/1.1.0/).
 
+## [1.1.3]
+
+### Fixed
+- On GNOME Shell 50 the "Copied" popup threw an error, so a successful extraction was reported as "OCR failed". The popup uses the new `showAll()` call there, and a failing popup falls back to a notification instead of reporting a failure.
+- Each snip now starts with no selection box. Previously the box from the last snip stayed in place and had to be moved with its handles.
+
 ## [1.1.2]
 
 ### Changed
