@@ -139,6 +139,17 @@ export default class TextExtractorExtension extends Extension {
             // when the drag ends. These are private widgets, so every access is optional; if a
             // Shell release renames them the regular screenshot UI is shown instead.
             ui._panel?.hide();
+            // Shell keeps the last selection and shows it as a ready-made box. Collapse it and
+            // hide the handles until the next drag. Private fields again, hence the guard.
+            const selector = ui._areaSelector;
+            if (selector && '_startX' in selector && selector._updateSelectionRect) {
+                Object.assign(selector, {_startX: 0, _startY: 0, _lastX: 0, _lastY: 0});
+                selector._updateSelectionRect();
+                this._hiddenHandles = ['_topLeftHandle', '_topRightHandle', '_bottomLeftHandle', '_bottomRightHandle']
+                    .map(name => selector[name]).filter(Boolean);
+                this._hiddenHandles.forEach(handle => handle.hide());
+                this._connectUI(selector, 'drag-started', () => this._showHandles());
+            }
             await ui.open();
             if (ui._selectionButton)
                 ui._selectionButton.checked = true;
@@ -208,6 +219,7 @@ export default class TextExtractorExtension extends Extension {
         for (const [object, id] of this._uiSignals)
             object.disconnect(id);
         this._uiSignals = [];
+        this._showHandles();
         Main.screenshotUI._panel?.show();
 
         if (this._previousMode) {
@@ -216,13 +228,30 @@ export default class TextExtractorExtension extends Extension {
         }
     }
 
+    _showHandles() {
+        this._hiddenHandles?.forEach(handle => handle.show());
+        this._hiddenHandles = null;
+    }
+
     _preview(text) {
         const line = text.replace(/\s+/g, ' ');
         return line.length > 48 ? `${line.slice(0, 47)}…` : line;
     }
 
     _toast(message, icon = 'edit-copy-symbolic') {
-        Main.osdWindowManager.show(-1, Gio.ThemedIcon.new(icon), message);
+        const osd = Main.osdWindowManager;
+        const gicon = Gio.ThemedIcon.new(icon);
+        // Shell 50 moved the monitor index out of show(); showAll takes the icon first.
+        // A popup is only a courtesy, so a Shell API change must not report OCR as failed.
+        try {
+            if (osd.showAll)
+                osd.showAll(gicon, message);
+            else
+                osd.show(-1, gicon, message);
+        } catch (e) {
+            console.error(`${this.metadata.name}: popup failed: ${e.message}`);
+            this._notify(message);
+        }
     }
 
     _notify(message) {
