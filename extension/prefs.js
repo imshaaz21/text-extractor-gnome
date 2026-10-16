@@ -39,6 +39,45 @@ export default class TextExtractorPreferences extends ExtensionPreferences {
         appearance.add(indicatorRow);
         page.add(appearance);
 
+        const shortcutRow = new Adw.ActionRow({title: _('Extract Text Shortcut'), activatable: true});
+        const shortcutLabel = new Gtk.ShortcutLabel({valign: Gtk.Align.CENTER, disabled_text: _('Disabled')});
+        const clearButton = new Gtk.Button({
+            icon_name: 'edit-clear-symbolic',
+            tooltip_text: _('Disable shortcut'),
+            valign: Gtk.Align.CENTER,
+            css_classes: ['flat'],
+        });
+        const showShortcut = () => {
+            shortcutLabel.accelerator = settings.get_strv('extract-shortcut')[0] ?? '';
+            shortcutRow.subtitle = _('Click, then press the new keys');
+        };
+        shortcutRow.add_suffix(shortcutLabel);
+        shortcutRow.add_suffix(clearButton);
+        shortcutRow.connect('activated', () => {
+            shortcutRow.subtitle = _('Press keys… (Esc cancels)');
+            const keys = new Gtk.EventControllerKey();
+            window.add_controller(keys);
+            keys.connect('key-pressed', (_c, keyval, _code, state) => {
+                const mods = state & Gtk.accelerator_get_default_mod_mask();
+                if (keyval === Gdk.KEY_Escape) {
+                    // cancel
+                } else if (mods && Gtk.accelerator_valid(keyval, mods)) {
+                    settings.set_strv('extract-shortcut', [Gtk.accelerator_name(keyval, mods)]);
+                } else {
+                    return Gdk.EVENT_STOP; // a bare key or lone modifier: keep waiting
+                }
+                window.remove_controller(keys);
+                showShortcut();
+                return Gdk.EVENT_STOP;
+            });
+        });
+        clearButton.connect('clicked', () => {
+            settings.set_strv('extract-shortcut', []);
+            showShortcut();
+        });
+        showShortcut();
+        appearance.add(shortcutRow);
+
         const ocr = new Adw.PreferencesGroup({
             title: _('Text Recognition'),
             description: _('Any language installed for Tesseract can be used. Pick several to read mixed-language text.'),

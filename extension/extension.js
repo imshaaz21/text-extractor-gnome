@@ -1,4 +1,6 @@
 import Gio from 'gi://Gio';
+import Meta from 'gi://Meta';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
@@ -23,10 +25,13 @@ export default class TextExtractorExtension extends Extension {
         this._createPanelButton();
 
         this._settings.bind('show-indicator', this._indicator, 'visible', Gio.SettingsBindFlags.DEFAULT);
+        Main.wm.addKeybinding('extract-shortcut', this._settings, Meta.KeyBindingFlags.NONE,
+            Shell.ActionMode.NORMAL, () => this._extractText());
         this._languageChangedId = this._settings.connect('changed::language', () => this._updateLanguageLabel());
     }
 
     disable() {
+        Main.wm.removeKeybinding('extract-shortcut');
         this._cancellable.cancel();
         this._cancellable = null;
 
@@ -43,7 +48,7 @@ export default class TextExtractorExtension extends Extension {
     _createPanelButton() {
         this._indicator = new PanelMenu.Button(0.0, this.metadata.name, false);
         this._indicator.add_child(new St.Icon({
-            icon_name: 'insert-text-symbolic',
+            gicon: Gio.FileIcon.new(Gio.File.new_for_path(`${this.path}/icons/text-extractor-symbolic.svg`)),
             style_class: 'system-status-icon',
         }));
 
@@ -202,7 +207,7 @@ export default class TextExtractorExtension extends Extension {
     // here because the clipboard receives text.
     _dropShellToast(source) {
         const icon = source.iconName ?? source.icon?.to_string?.();
-        if (icon !== SHELL_TOAST_ICON)
+        if (!icon?.includes(SHELL_TOAST_ICON))
             return;
 
         const id = source.connect('notification-added', (_source, notification) => {
